@@ -1,3 +1,7 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## Unreleased
+
+### Added
+
+- Added a concise "description" above `Bash` command calls, explains what the command does.
