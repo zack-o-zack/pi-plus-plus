@@ -10,7 +10,7 @@ pi --extension ./src/index.ts
 
 Or add this directory to Pi's `extensions` setting.
 
-## Contributing and releases
+## Release
 
 Install dependencies and validate the package with:
 
@@ -19,22 +19,12 @@ npm install --ignore-scripts
 npm run check
 ```
 
-For a user-facing change, create a changeset and describe the SemVer impact:
-
-```sh
-npm run changeset
-```
-
-The release workflow opens a release pull request from changesets on `main`.
-After that PR merges, the workflow publishes to npm, creates a `vX.Y.Z` tag,
-and creates the corresponding GitHub release. Maintainers can run these commands
-locally when necessary:
+Add release notes under `## Unreleased` in `CHANGELOG.md`, then run:
 
 ```sh
 npm run version
 npm run release
 ```
 
-Publishing requires the repository secret `NPM_TOKEN`, an npm access token that
-can publish `pi-plus-plus`. Without it, the workflow creates release pull
-requests but does not publish to npm.
+The GitHub Actions Release workflow performs these steps from `main`, commits
+the release, and creates its tag and GitHub release.
