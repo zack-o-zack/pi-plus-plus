@@ -27,6 +27,9 @@ jobs:
       - name: Validate package
         run: npm run check
 
+      - name: Run integration suite
+        run: npm test
+
       - name: Enforce changeset policy
         if: github.head_ref != 'changeset-release/main'
         shell: bash
@@ -59,3 +62,28 @@ jobs:
 
       - name: Validate changesets
         run: npx changeset status --since="origin/${{ github.event.pull_request.base.ref }}"
+
+  compatibility-latest:
+    name: Pi latest compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install pinned dependencies
+        run: npm ci
+
+      - name: Install fresh Pi latest
+        run: npm install --ignore-scripts --no-save --package-lock=false --force @earendil-works/pi-coding-agent@latest
+
+      - name: Run package checks
+        run: npm run check
+
+      - name: Run integration suite
+        run: npm test
