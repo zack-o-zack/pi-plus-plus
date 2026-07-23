@@ -1,0 +1,27 @@
+{
+  "name": "pi-plus-plus",
+  "version": "0.0.0",
+  "description": "Pi extension",
+  "type": "module",
+  "files": [
+    "src",
+    "CHANGELOG.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "devDependencies": {
+    "@changesets/cli": "2.31.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "check": "node --experimental-strip-types --check src/index.ts && npm pack --dry-run",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
+  }
+}

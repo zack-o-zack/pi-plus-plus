@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate package
+        run: npm run check
+
+      - name: Enforce changeset policy
+        if: github.head_ref != 'changeset-release/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="origin/${{ github.event.pull_request.base.ref }}"
+          changed_files="$(git diff --name-only "$base...HEAD")"
+          has_changeset=false
+          requires_changeset=false
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            case "$file" in
+              .changeset/*.md)
+                has_changeset=true
+                ;;
+              README.md|CHANGELOG.md|AGENTS.md|.github/*|.changeset/config.json|package-lock.json)
+                ;;
+              *)
+                requires_changeset=true
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          if [ "$requires_changeset" = true ] && [ "$has_changeset" = false ]; then
+            echo "This pull request changes package behavior but includes no changeset."
+            echo "Run npm run changeset and commit the generated file."
+            exit 1
+          fi
+
+      - name: Validate changesets
+        run: npx changeset status --since="origin/${{ github.event.pull_request.base.ref }}"
