@@ -514,6 +514,8 @@ test("reloads trusted project permissions without allowing untrusted overrides",
 test("registers the permissions tool_call hook through the exported extension", () => {
 	let toolCallRegistered = false;
 	extension({
+		registerFlag(): void {},
+		registerCommand(): void {},
 		on(event: string): void {
 			if (event === "tool_call") toolCallRegistered = true;
 		},

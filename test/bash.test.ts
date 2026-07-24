@@ -23,12 +23,15 @@ interface RegisteredBashTool {
 function registerBashTool(): RegisteredBashTool {
 	let tool: RegisteredBashTool | undefined;
 	extension({
-		registerTool(registeredTool): void {
+		registerFlag(): void {},
+		registerCommand(): void {},
+		on(): void {},
+		registerTool(registeredTool: { name: string }): void {
 			if (registeredTool.name === "bash") {
 				tool = registeredTool as unknown as RegisteredBashTool;
 			}
 		},
-	} as ExtensionAPI);
+	} as unknown as ExtensionAPI);
 	assert.ok(tool);
 	return tool;
 }
@@ -222,10 +225,13 @@ test("does not add the interactive description to non-interactive Bash output", 
 test("registers only Bash when invoked with the public ExtensionAPI", () => {
 	const registered: string[] = [];
 	const api = {
+		registerFlag(): void {},
+		registerCommand(): void {},
+		on(): void {},
 		registerTool(tool: { name: string }): void {
 			registered.push(tool.name);
 		},
-	} as ExtensionAPI;
+	} as unknown as ExtensionAPI;
 	extension(api);
 	assert.deepEqual(registered, ["bash"]);
 });
