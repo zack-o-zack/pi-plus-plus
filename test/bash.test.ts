@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import {
 	createBashToolDefinition,
@@ -117,7 +118,7 @@ test("keeps custom Bash rendering across Pi lastComponent propagation", () => {
 
 test("loads the Bash override through Pi's public extension loader", async () => {
 	const result = await discoverAndLoadExtensions(
-		[new URL("../src/index.ts", import.meta.url).pathname],
+		[fileURLToPath(new URL("../src/index.ts", import.meta.url))],
 		process.cwd(),
 		"/tmp/pi-plus-plus-test-agent",
 		createEventBus(),
@@ -190,7 +191,7 @@ test("loads the Bash override through Pi's public extension loader", async () =>
 
 test("does not add the interactive description to non-interactive Bash output", async () => {
 	const result = await discoverAndLoadExtensions(
-		[new URL("../src/index.ts", import.meta.url).pathname],
+		[fileURLToPath(new URL("../src/index.ts", import.meta.url))],
 		process.cwd(),
 		"/tmp/pi-plus-plus-test-agent",
 		createEventBus(),
