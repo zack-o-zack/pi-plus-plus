@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
-	SettingsManager,
 	type ExtensionAPI,
+	SettingsManager,
 	type ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -284,7 +284,10 @@ test("loads global and trusted project settings with deep merge and fails closed
 	for (const [input, pattern] of [
 		[{ ppp: { permission: { edit: { bad: "nope" } } } }, /invalid/i],
 		[{ ppp: "invalid" }, /object/],
-		[{ ppp: { permission: { edit: { "/[invalid/": "deny" } } } }, /regular expression/],
+		[
+			{ ppp: { permission: { edit: { "/[invalid/": "deny" } } } },
+			/regular expression/,
+		],
 	] as const) {
 		const p = loadPermissionPolicy(input, {});
 		assert(p.configuration.status === "invalid");
@@ -302,7 +305,10 @@ test("loads global and trusted project settings with deep merge and fails closed
 		assert(p.configuration.status === "invalid");
 		assert.match(p.configuration.reason, /settings root/);
 	}
-	assert.equal(loadPermissionPolicy({}, undefined).configuration.status, "valid");
+	assert.equal(
+		loadPermissionPolicy({}, undefined).configuration.status,
+		"valid",
+	);
 	const invalidRegexPolicy = loadPermissionPolicy(
 		{ ppp: { permission: { edit: { "/[invalid/": "deny" } } } },
 		{},
@@ -318,34 +324,28 @@ test("loads global and trusted project settings with deep merge and fails closed
 		{ cwd } as never,
 	);
 	assert.equal((invalidRegexResult as { block?: boolean }).block, true);
-	assert.equal(loadPermissionPolicy({}, undefined).configuration.status, "valid");
+	assert.equal(
+		loadPermissionPolicy({}, undefined).configuration.status,
+		"valid",
+	);
 });
 
 async function captureToolCallHandler(
 	settings: PermissionSettings | PermissionPolicy,
 ): Promise<(event: ToolCallEvent, ctx: never) => unknown> {
 	let handler: ((event: ToolCallEvent, ctx: never) => unknown) | undefined;
-	const sessionStartHandlers: Array<
-		(event: unknown, ctx: never) => unknown
-	> = [];
+	const sessionStartHandlers: Array<(event: unknown, ctx: never) => unknown> =
+		[];
 	const api = {
-		on(
-			event: string,
-			value: (event: unknown, ctx: never) => unknown,
-		): void {
-			if (event === "session_start")
-				sessionStartHandlers.push(value);
+		on(event: string, value: (event: unknown, ctx: never) => unknown): void {
+			if (event === "session_start") sessionStartHandlers.push(value);
 			if (event === "tool_call")
-				handler = value as (
-					event: ToolCallEvent,
-					ctx: never,
-				) => unknown;
+				handler = value as (event: ToolCallEvent, ctx: never) => unknown;
 		},
 		registerTool(): void {},
 	} as unknown as ExtensionAPI;
 
-	const originalCreate =
-		SettingsManager.create.bind(SettingsManager);
+	const originalCreate = SettingsManager.create.bind(SettingsManager);
 	try {
 		const policy: PermissionPolicy =
 			"configuration" in settings
@@ -379,14 +379,11 @@ async function captureToolCallHandler(
 		assert.ok(handler);
 
 		for (const fn of sessionStartHandlers) {
-			await fn(
-				{ type: "session_start", reason: "startup" },
-				{
-					cwd,
-					isProjectTrusted: () => true,
-					ui: { notify(): void {} },
-				} as never,
-			);
+			await fn({ type: "session_start", reason: "startup" }, {
+				cwd,
+				isProjectTrusted: () => true,
+				ui: { notify(): void {} },
+			} as never);
 		}
 
 		return handler;
@@ -417,7 +414,9 @@ function capturePermissionHandlers(): Map<
 }
 
 test("blocks a supported tool at Pi's tool_call boundary and allows unmatched calls", async () => {
-	const handler = await captureToolCallHandler({ edit: { "secret.txt": "deny" } });
+	const handler = await captureToolCallHandler({
+		edit: { "secret.txt": "deny" },
+	});
 	const context = {
 		cwd,
 		mode: "print",
