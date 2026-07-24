@@ -1,2 +1,5 @@
 node_modules/
 *.log
+.pi/tmp*
+docs/specs*
+.pi/settings.json

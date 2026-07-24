@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import {
 	createBashToolDefinition,
 	createEventBus,
@@ -117,7 +118,7 @@ test("keeps custom Bash rendering across Pi lastComponent propagation", () => {
 
 test("loads the Bash override through Pi's public extension loader", async () => {
 	const result = await discoverAndLoadExtensions(
-		[new URL("../src/index.ts", import.meta.url).pathname],
+		[fileURLToPath(new URL("../src/index.ts", import.meta.url))],
 		process.cwd(),
 		"/tmp/pi-plus-plus-test-agent",
 		createEventBus(),
@@ -165,26 +166,32 @@ test("loads the Bash override through Pi's public extension loader", async () =>
 	assert.equal(lines?.[1], "");
 	assert.match(lines?.[2] ?? "", /\$ printf integration/);
 
+	const mockContext = {
+		sessionManager: {
+			getSessionId: () => "test-session",
+			getSessionFile: () => "/tmp/pi-test-session",
+		},
+	} as never;
 	const extensionResult = await definition.execute(
 		"test",
 		prepared as never,
 		undefined,
 		undefined,
-		{} as never,
+		mockContext,
 	);
 	const nativeResult = await createBashToolDefinition(process.cwd()).execute(
 		"test",
 		{ command: "printf integration" },
 		undefined,
 		undefined,
-		{} as never,
+		mockContext,
 	);
 	assert.deepEqual(extensionResult, nativeResult);
 });
 
 test("does not add the interactive description to non-interactive Bash output", async () => {
 	const result = await discoverAndLoadExtensions(
-		[new URL("../src/index.ts", import.meta.url).pathname],
+		[fileURLToPath(new URL("../src/index.ts", import.meta.url))],
 		process.cwd(),
 		"/tmp/pi-plus-plus-test-agent",
 		createEventBus(),
@@ -198,7 +205,12 @@ test("does not add the interactive description to non-interactive Bash output", 
 		{ command: "printf non-interactive" } as never,
 		undefined,
 		undefined,
-		{} as never,
+		{
+			sessionManager: {
+				getSessionId: () => "test-session",
+				getSessionFile: () => "/tmp/pi-test-session",
+			},
+		} as never,
 	);
 
 	assert.deepEqual(output, {
