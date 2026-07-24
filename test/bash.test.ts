@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import {
 	createBashToolDefinition,
 	createEventBus,
