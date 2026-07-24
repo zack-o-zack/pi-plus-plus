@@ -165,19 +165,22 @@ test("loads the Bash override through Pi's public extension loader", async () =>
 	assert.equal(lines?.[1], "");
 	assert.match(lines?.[2] ?? "", /\$ printf integration/);
 
+	const mockContext = {
+		getSessionId: () => "test-session",
+	} as never;
 	const extensionResult = await definition.execute(
 		"test",
 		prepared as never,
 		undefined,
 		undefined,
-		{} as never,
+		mockContext,
 	);
 	const nativeResult = await createBashToolDefinition(process.cwd()).execute(
 		"test",
 		{ command: "printf integration" },
 		undefined,
 		undefined,
-		{} as never,
+		mockContext,
 	);
 	assert.deepEqual(extensionResult, nativeResult);
 });
@@ -198,7 +201,7 @@ test("does not add the interactive description to non-interactive Bash output", 
 		{ command: "printf non-interactive" } as never,
 		undefined,
 		undefined,
-		{} as never,
+		{ getSessionId: () => "test-session" } as never,
 	);
 
 	assert.deepEqual(output, {
