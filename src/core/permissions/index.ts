@@ -340,6 +340,7 @@ function normalizeBashLineContinuations(command: string): {
 	command: string;
 	ambiguous: boolean;
 } {
+	/* Joins backslash-newline continuations so each command becomes a single logical line. */
 	let normalized = "";
 	let quote: "'" | '"' | undefined;
 	let escaped = false;
@@ -353,7 +354,8 @@ function normalizeBashLineContinuations(command: string): {
 		}
 		if (character === "\\") {
 			if (next === "\n" || next === "\r") {
-				if (quote === "'") return { command, ambiguous: true }; // Single-quoted continuations are literal.
+				// Inside single quotes, backslash-newline is literal data, not a continuation.
+				if (quote === "'") return { command, ambiguous: true };
 				if (next === "\r" && command[index + 2] === "\n") index++;
 				index++;
 				continue;
