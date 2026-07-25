@@ -29,8 +29,9 @@
     "access": "public"
   },
   "scripts": {
-    "check": "node --experimental-strip-types --check src/index.ts && node --experimental-strip-types --check src/features/bash/index.ts && npm run typecheck && npm run format:check && npm pack --dry-run",
-    "format:check": "biome check src test",
+    "check": "node --experimental-strip-types --check src/index.ts && node --experimental-strip-types --check src/features/bash/index.ts && npm run typecheck && npm run lint && npm run format:check && npm pack --dry-run",
+    "lint": "biome lint src test",
+    "format:check": "biome format src test",
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
     "version": "node scripts/release.mjs",

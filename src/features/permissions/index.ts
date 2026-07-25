@@ -56,7 +56,8 @@ function renderBlockReason(
 	return `Permission policy denied ${decision.key} for target ${decision.target}${detail}; do not seek alternate tools, paths, or commands to bypass this restriction.`;
 }
 
-export function registerPermissionHook(pi: ExtensionAPI): void {
+/** Registers session policy loading and tool-call permission enforcement. */
+export function registerPermissionHook(pi: Pick<ExtensionAPI, "on">): void {
 	if (typeof pi.on !== "function") return;
 	const cache = createPermissionPolicyCache();
 

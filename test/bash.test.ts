@@ -5,10 +5,9 @@ import {
 	createBashToolDefinition,
 	createEventBus,
 	discoverAndLoadExtensions,
-	type ExtensionAPI,
 	initTheme,
 } from "@earendil-works/pi-coding-agent";
-import extension from "../src/index.ts";
+import extension, { type ExtensionRegistrationAPI } from "../src/index.ts";
 
 interface RegisteredBashTool {
 	name: string;
@@ -22,13 +21,24 @@ interface RegisteredBashTool {
 
 function registerBashTool(): RegisteredBashTool {
 	let tool: RegisteredBashTool | undefined;
-	extension({
-		registerTool(registeredTool): void {
+	const api = {
+		registerFlag(): void {},
+		getFlag(): undefined {
+			return undefined;
+		},
+		getActiveTools(): string[] {
+			return [];
+		},
+		setActiveTools(): void {},
+		registerCommand(): void {},
+		on(): void {},
+		registerTool(registeredTool: { name: string }): void {
 			if (registeredTool.name === "bash") {
 				tool = registeredTool as unknown as RegisteredBashTool;
 			}
 		},
-	} as ExtensionAPI);
+	} satisfies ExtensionRegistrationAPI;
+	extension(api);
 	assert.ok(tool);
 	return tool;
 }
@@ -222,10 +232,20 @@ test("does not add the interactive description to non-interactive Bash output", 
 test("registers only Bash when invoked with the public ExtensionAPI", () => {
 	const registered: string[] = [];
 	const api = {
+		registerFlag(): void {},
+		getFlag(): undefined {
+			return undefined;
+		},
+		getActiveTools(): string[] {
+			return [];
+		},
+		setActiveTools(): void {},
+		registerCommand(): void {},
+		on(): void {},
 		registerTool(tool: { name: string }): void {
 			registered.push(tool.name);
 		},
-	} as ExtensionAPI;
+	} satisfies ExtensionRegistrationAPI;
 	extension(api);
 	assert.deepEqual(registered, ["bash"]);
 });

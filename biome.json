@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.1.3/schema.json",
   "files": {
     "includes": ["src/**/*.ts", "test/**/*.ts"]
   },
@@ -8,6 +8,56 @@
     "indentStyle": "tab"
   },
   "linter": {
-    "enabled": true
-  }
+    "enabled": true,
+    "domains": {
+      "project": "recommended",
+      "test": "recommended",
+      "react": "none",
+      "solid": "none",
+      "next": "none",
+      "vue": "none"
+    },
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "noUndeclaredDependencies": {
+          "level": "error",
+          "options": {
+            "devDependencies": ["test/**/*.ts"]
+          }
+        }
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noExportsInTest": "error",
+        "noFocusedTests": "error",
+        "noSkippedTests": "error"
+      },
+      "style": {
+        "noProcessEnv": "error",
+        "useImportType": "error",
+        "useNodejsImportProtocol": "error",
+        "useNodeAssertStrict": "error"
+      },
+      "complexity": {
+        "noExcessiveNestedTestSuites": "error"
+      },
+      "nursery": {
+        "noFloatingPromises": "error",
+        "noMisusedPromises": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["test/**/*.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noProcessEnv": "off"
+          }
+        }
+      }
+    }
+  ]
 }
