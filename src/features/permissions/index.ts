@@ -16,7 +16,9 @@ import {
 type Settings = ReturnType<SettingsManager["getGlobalSettings"]>;
 type ExtendedSettings = Settings & {
 	ppp?: {
-		permission?: Partial<Record<PermissionKey, Record<string, PermissionAction>>>;
+		permission?: Partial<
+			Record<PermissionKey, Record<string, PermissionAction>>
+		>;
 	};
 };
 
@@ -48,7 +50,9 @@ function loadPolicy(cwd: string, projectTrusted: boolean): PermissionPolicy {
 		);
 	return loadPermissionPolicy(
 		settings.getGlobalSettings() as ExtendedSettings,
-		projectTrusted ? (settings.getProjectSettings() as ExtendedSettings) : undefined,
+		projectTrusted
+			? (settings.getProjectSettings() as ExtendedSettings)
+			: undefined,
 		errors,
 	);
 }
