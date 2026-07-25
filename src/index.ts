@@ -14,6 +14,7 @@ export type ExtensionRegistrationAPI = Pick<
 	| "registerTool"
 >;
 
+/** Registers the extension features. */
 export default function (pi: ExtensionRegistrationAPI): void {
 	registerAccessMode(pi);
 	registerBashDescription(pi);

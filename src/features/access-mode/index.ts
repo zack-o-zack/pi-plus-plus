@@ -29,6 +29,7 @@ export interface AccessModeContext {
 
 export interface AccessModeCommand {
 	description: string;
+	/** Handles the access-mode command invocation. */
 	handler: (args: string, ctx: AccessModeContext) => Promise<void>;
 }
 
@@ -46,7 +47,9 @@ export interface AccessModeExtensionAPI {
 	getFlag: ExtensionAPI["getFlag"];
 	getActiveTools: ExtensionAPI["getActiveTools"];
 	setActiveTools: ExtensionAPI["setActiveTools"];
+	/** Registers an access-mode command. */
 	registerCommand(name: string, options: AccessModeCommand): void;
+	/** Registers an access-mode session event handler. */
 	on(
 		event: "session_start" | "session_shutdown" | "before_agent_start",
 		handler: AccessModeEventHandler,
@@ -67,6 +70,7 @@ function modeForOption(label: string): AccessMode | undefined {
 	return ACCESS_MODE_OPTIONS.find((option) => option.label === label)?.mode;
 }
 
+/** Registers the access-mode flag, command, and session lifecycle handlers. */
 export function registerAccessMode(pi: AccessModeExtensionAPI): void {
 	pi.registerFlag("access-mode", {
 		description: "Initial access mode",

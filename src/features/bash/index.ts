@@ -37,6 +37,7 @@ function prepareBashArguments(args: unknown): BashDescriptionInput {
 	} as BashDescriptionInput;
 }
 
+/** Registers the native Bash tool with a required human-readable description. */
 export function registerBashDescription(
 	pi: Pick<ExtensionAPI, "registerTool">,
 ): void {

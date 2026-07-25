@@ -45,8 +45,11 @@ export type PermissionDecision =
 	| { action: "invalid-configuration"; reason: string };
 
 export interface PermissionPolicyCache {
+	/** Returns the currently cached permission policy. */
 	get(): PermissionPolicy;
+	/** Replaces the cached permission policy. */
 	set(policy: PermissionPolicy): void;
+	/** Loads, caches, and returns a permission policy from settings. */
 	reload(
 		globalSettings: unknown,
 		projectSettings: unknown,
@@ -85,6 +88,7 @@ function readPermissionSettings(value: unknown): PermissionSettings {
 				pattern.endsWith("/") &&
 				pattern.length > 1
 			) {
+				// Validate regex rules while loading so invalid policy fails closed.
 				try {
 					new RegExp(pattern.slice(1, -1));
 				} catch {
@@ -107,6 +111,7 @@ function invalidPolicy(reason: string): PermissionPolicy {
 	};
 }
 
+/** Loads and merges global and project permission settings. */
 export function loadPermissionPolicy(
 	globalSettings: unknown,
 	projectSettings: unknown,
@@ -172,6 +177,7 @@ export function loadPermissionPolicy(
 	}
 }
 
+/** Creates a mutable cache for the policy used by tool-call checks. */
 export function createPermissionPolicyCache(
 	initial: PermissionPolicy = loadPermissionPolicy(undefined, undefined),
 ): PermissionPolicyCache {
@@ -220,6 +226,7 @@ function evaluateTarget(
 ): PermissionDecision {
 	if (!rules) return { action: "allow" };
 	let result: PermissionDecision = { action: "allow" };
+	// Preserve object order so the last matching rule determines the result.
 	for (const [rule, action] of Object.entries(rules)) {
 		if (matches(rule, target)) {
 			result =
@@ -235,6 +242,7 @@ function splitBash(command: string): {
 	segments: string[];
 	ambiguous: boolean;
 } {
+	/* Unsupported shell syntax is ambiguous rather than partially evaluated. */
 	const segments: string[] = [];
 	let tokens: string[] = [];
 	let token = "";
@@ -345,7 +353,7 @@ function normalizeBashLineContinuations(command: string): {
 		}
 		if (character === "\\") {
 			if (next === "\n" || next === "\r") {
-				if (quote === "'") return { command, ambiguous: true };
+				if (quote === "'") return { command, ambiguous: true }; // Single-quoted continuations are literal.
 				if (next === "\r" && command[index + 2] === "\n") index++;
 				index++;
 				continue;
@@ -364,6 +372,7 @@ function normalizeBashLineContinuations(command: string): {
 	return { command: normalized, ambiguous: false };
 }
 
+/** Evaluates a tool call against a permission policy without executing it. */
 export function evaluatePermission(
 	policyOrSettings: PermissionPolicy | PermissionSettings,
 	call: PermissionCall,
