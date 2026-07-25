@@ -16,6 +16,8 @@
 - Use top-level imports only.
 - Ask before removing intentional functionality.
 - Do not add backward compatibility unless requested.
+- Do not use `unknown` type and `isRecord` utility function, both are 'code smell'.
+- Avoid unnecessary abstractions and utility functions; inline code unless asked otherwise.
 
 ## Commands
 
