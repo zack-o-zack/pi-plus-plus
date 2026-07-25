@@ -37,7 +37,9 @@ function prepareBashArguments(args: unknown): BashDescriptionInput {
 	} as BashDescriptionInput;
 }
 
-export function registerBashDescription(pi: ExtensionAPI): void {
+export function registerBashDescription(
+	pi: Pick<ExtensionAPI, "registerTool">,
+): void {
 	const nativeBash = createBashToolDefinition(process.cwd());
 	const nativeComponents = new WeakMap<
 		object,
