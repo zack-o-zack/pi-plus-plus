@@ -19,9 +19,19 @@ import extension from "../src/index.ts";
 
 const cwd = "/workspace/project";
 
+function mockExtensionAPI(
+	on: (
+		event: string,
+		handler: (event: unknown, context: never) => unknown,
+	) => void,
+	registerTool: () => void = () => {},
+): Pick<ExtensionAPI, "on" | "registerTool"> {
+	return { on: on as ExtensionAPI["on"], registerTool };
+}
+
 test("evaluates ordered edit rules against normalized paths", () => {
 	const settings: PermissionSettings = {
-		edit: {
+		write: {
 			"**/*.ts": "deny",
 			"src/**": "allow",
 		},
@@ -35,7 +45,7 @@ test("evaluates ordered edit rules against normalized paths", () => {
 		),
 		{
 			action: "allow",
-			key: "edit",
+			key: "write",
 			target: "src/app.ts",
 			rule: "src/**",
 			reason: "Matched allow rule",
@@ -49,7 +59,7 @@ test("evaluates ordered edit rules against normalized paths", () => {
 		),
 		{
 			action: "deny",
-			key: "edit",
+			key: "write",
 			target: "lib/app.ts",
 			rule: "**/*.ts",
 			reason: "Matched deny rule",
@@ -58,7 +68,7 @@ test("evaluates ordered edit rules against normalized paths", () => {
 });
 
 test("supports regex rules and preserves external absolute paths", () => {
-	const settings: PermissionSettings = { edit: { "/secret\\.key$/": "deny" } };
+	const settings: PermissionSettings = { write: { "/secret\\.key$/": "deny" } };
 	assert.deepEqual(
 		evaluatePermission(
 			settings,
@@ -67,12 +77,192 @@ test("supports regex rules and preserves external absolute paths", () => {
 		),
 		{
 			action: "deny",
-			key: "edit",
+			key: "write",
 			target: "/tmp/secret.key",
 			rule: "/secret\\.key$/",
 			reason: "Matched deny rule",
 		},
 	);
+});
+
+test("evaluates exploration targets, defaults, and effective globs", () => {
+	const settings: PermissionSettings = {
+		read: {
+			"private/**": "deny",
+			"**/*.md": "deny",
+			"/external\\/secret.*$/": "deny",
+			".": "deny",
+			"/external\\/secret$/": "deny",
+		},
+	};
+	assert.equal(
+		evaluatePermission(
+			settings,
+			{ toolName: "read", input: { path: "private/notes.md" } },
+			cwd,
+		).action,
+		"deny",
+	);
+	assert.equal(
+		evaluatePermission(
+			settings,
+			{ toolName: "grep", input: { path: "private", glob: "**/*.md" } },
+			cwd,
+		).action,
+		"deny",
+	);
+	assert.equal(
+		evaluatePermission(
+			settings,
+			{ toolName: "find", input: { path: "private", pattern: "**/*.md" } },
+			cwd,
+		).action,
+		"deny",
+	);
+	assert.equal(
+		evaluatePermission(settings, { toolName: "ls", input: {} }, cwd).action,
+		"deny",
+	);
+	assert.equal(
+		evaluatePermission(
+			settings,
+			{ toolName: "grep", input: { glob: "**/*.md" } },
+			cwd,
+		).action,
+		"deny",
+	);
+	assert.equal(
+		evaluatePermission(
+			settings,
+			{ toolName: "find", input: { pattern: "**/*.md" } },
+			cwd,
+		).action,
+		"deny",
+	);
+	for (const toolName of ["grep", "find"] as const) {
+		const input =
+			toolName === "grep"
+				? { path: "/external/secret", glob: "**/*.md" }
+				: { path: "/external/secret", pattern: "**/*.md" };
+		const decision = evaluatePermission(settings, { toolName, input }, cwd);
+		assert.equal(decision.action, "deny");
+		if (decision.action === "deny")
+			assert.equal(decision.target, "/external/secret");
+	}
+	assert.equal(
+		evaluatePermission(
+			settings,
+			{ toolName: "ls", input: { path: "/external/secret" } },
+			cwd,
+		).action,
+		"deny",
+	);
+});
+
+test("evaluates find's effective full-path glob for relative and external roots", () => {
+	const settings: PermissionSettings = {
+		read: {
+			"**/src/*.ts": "deny",
+			"src/*.ts": "allow",
+			"/external/**/src/*.ts": "deny",
+		},
+	};
+
+	assert.deepEqual(
+		evaluatePermission(
+			settings,
+			{ toolName: "find", input: { pattern: "src/*.ts" } },
+			cwd,
+		),
+		{
+			action: "deny",
+			key: "read",
+			target: "**/src/*.ts",
+			rule: "**/src/*.ts",
+			reason: "Matched deny rule",
+		},
+	);
+	assert.deepEqual(
+		evaluatePermission(
+			settings,
+			{
+				toolName: "find",
+				input: { path: "/external", pattern: "src/*.ts" },
+			},
+			cwd,
+		),
+		{
+			action: "deny",
+			key: "read",
+			target: "/external/**/src/*.ts",
+			rule: "/external/**/src/*.ts",
+			reason: "Matched deny rule",
+		},
+	);
+});
+
+test("evaluates find basename-only patterns without joining the search path", () => {
+	const settings: PermissionSettings = {
+		read: { "*.ts": "deny" },
+	};
+
+	assert.deepEqual(
+		evaluatePermission(
+			settings,
+			{ toolName: "find", input: { path: "src", pattern: "*.ts" } },
+			cwd,
+		),
+		{
+			action: "deny",
+			key: "read",
+			target: "*.ts",
+			rule: "*.ts",
+			reason: "Matched deny rule",
+		},
+	);
+	assert.equal(
+		evaluatePermission(
+			settings,
+			{ toolName: "find", input: { path: "src", pattern: "*.js" } },
+			cwd,
+		).action,
+		"allow",
+	);
+});
+
+test("denies exploration base paths and effective patterns independently", () => {
+	for (const [toolName, input, baseTarget, effectiveTarget] of [
+		[
+			"grep",
+			{ path: "private", glob: "**/*.ts" },
+			"private",
+			"private/**/*.ts",
+		],
+		[
+			"find",
+			{ path: "private", pattern: "**/*.ts" },
+			"private",
+			"private/**/*.ts",
+		],
+	] as const) {
+		const baseDenied = evaluatePermission(
+			{ read: { private: "deny" } },
+			{ toolName, input },
+			cwd,
+		);
+		assert.equal(baseDenied.action, "deny");
+		if (baseDenied.action === "deny")
+			assert.equal(baseDenied.target, baseTarget);
+
+		const patternDenied = evaluatePermission(
+			{ read: { private: "allow", [effectiveTarget]: "deny" } },
+			{ toolName, input },
+			cwd,
+		);
+		assert.equal(patternDenied.action, "deny");
+		if (patternDenied.action === "deny")
+			assert.equal(patternDenied.target, effectiveTarget);
+	}
 });
 
 test("matches every simple Bash command and complete command tokens", () => {
@@ -256,12 +446,12 @@ test("fails closed for ambiguous Bash syntax only when Bash policy is configured
 
 test("loads global and trusted project settings with deep merge and fails closed when malformed", async () => {
 	const globalSettings = {
-		ppp: { permission: { edit: { "**/*.lock": "deny", "src/**": "deny" } } },
+		ppp: { permission: { write: { "**/*.lock": "deny", "src/**": "deny" } } },
 	};
 	const projectSettings = {
 		ppp: {
 			permission: {
-				edit: { "src/**": "allow" },
+				write: { "src/**": "allow" },
 				bash: { "git push *": "deny" },
 			},
 		},
@@ -269,7 +459,7 @@ test("loads global and trusted project settings with deep merge and fails closed
 	const policy = loadPermissionPolicy(globalSettings, projectSettings);
 	assert.equal(policy.configuration.status, "valid");
 	assert.deepEqual(policy.settings, {
-		edit: { "**/*.lock": "deny", "src/**": "allow" },
+		write: { "**/*.lock": "deny", "src/**": "allow" },
 		bash: { "git push *": "deny" },
 	});
 	assert.equal(
@@ -277,15 +467,17 @@ test("loads global and trusted project settings with deep merge and fails closed
 		undefined,
 	);
 	assert.deepEqual(
-		loadPermissionPolicy({ permission: { edit: { "secret.txt": "deny" } } }, {})
-			.settings,
+		loadPermissionPolicy(
+			{ permission: { write: { "secret.txt": "deny" } } },
+			{},
+		).settings,
 		{},
 	);
 	for (const [input, pattern] of [
-		[{ ppp: { permission: { edit: { bad: "nope" } } } }, /invalid/i],
+		[{ ppp: { permission: { write: { bad: "nope" } } } }, /invalid/i],
 		[{ ppp: "invalid" }, /object/],
 		[
-			{ ppp: { permission: { edit: { "/[invalid/": "deny" } } } },
+			{ ppp: { permission: { write: { "/[invalid/": "deny" } } } },
 			/regular expression/,
 		],
 	] as const) {
@@ -310,7 +502,7 @@ test("loads global and trusted project settings with deep merge and fails closed
 		"valid",
 	);
 	const invalidRegexPolicy = loadPermissionPolicy(
-		{ ppp: { permission: { edit: { "/[invalid/": "deny" } } } },
+		{ ppp: { permission: { write: { "/[invalid/": "deny" } } } },
 		{},
 	);
 	const invalidRegexHandler = await captureToolCallHandler(invalidRegexPolicy);
@@ -336,14 +528,13 @@ async function captureToolCallHandler(
 	let handler: ((event: ToolCallEvent, ctx: never) => unknown) | undefined;
 	const sessionStartHandlers: Array<(event: unknown, ctx: never) => unknown> =
 		[];
-	const api = {
-		on(event: string, value: (event: unknown, ctx: never) => unknown): void {
+	const api = mockExtensionAPI(
+		(event: string, value: (event: unknown, ctx: never) => unknown): void => {
 			if (event === "session_start") sessionStartHandlers.push(value);
 			if (event === "tool_call")
 				handler = value as (event: ToolCallEvent, ctx: never) => unknown;
 		},
-		registerTool(): void {},
-	} as unknown as ExtensionAPI;
+	);
 
 	const originalCreate = SettingsManager.create.bind(SettingsManager);
 	try {
@@ -400,22 +591,21 @@ function capturePermissionHandlers(): Map<
 		string,
 		(event: unknown, context: never) => unknown
 	>();
-	const api = {
-		on(
+	const api = mockExtensionAPI(
+		(
 			event: string,
 			handler: (event: unknown, context: never) => unknown,
-		): void {
+		): void => {
 			handlers.set(event, handler);
 		},
-		registerTool(): void {},
-	} as unknown as ExtensionAPI;
+	);
 	registerPermissionHook(api);
 	return handlers;
 }
 
 test("blocks a supported tool at Pi's tool_call boundary and allows unmatched calls", async () => {
 	const handler = await captureToolCallHandler({
-		edit: { "secret.txt": "deny" },
+		write: { "secret.txt": "deny" },
 	});
 	const context = {
 		cwd,
@@ -435,7 +625,7 @@ test("blocks a supported tool at Pi's tool_call boundary and allows unmatched ca
 	assert.deepEqual(denied, {
 		block: true,
 		reason:
-			"Permission policy denied edit for target secret.txt by rule secret.txt; do not seek alternate tools, paths, or commands to bypass this restriction.",
+			"Permission policy denied write for target secret.txt by rule secret.txt; do not seek alternate tools, paths, or commands to bypass this restriction.",
 	});
 	const allowed = await handler(
 		{
@@ -449,6 +639,109 @@ test("blocks a supported tool at Pi's tool_call boundary and allows unmatched ca
 	assert.equal(allowed, undefined);
 });
 
+test("blocks exploration tools with intentional-policy feedback", async () => {
+	const handler = await captureToolCallHandler({
+		read: { "private/**": "deny", ".": "deny" },
+	});
+	const context = { cwd } as never;
+	for (const [toolName, input, key, target] of [
+		["read", { path: "private/notes.md" }, "read", "private/notes.md"],
+		["grep", { path: "private", glob: "**/*.md" }, "read", "private/**/*.md"],
+		[
+			"find",
+			{ path: "private", pattern: "**/*.md" },
+			"read",
+			"private/**/*.md",
+		],
+		["ls", {}, "read", "."],
+	] as const) {
+		assert.deepEqual(
+			await handler(
+				{ type: "tool_call", toolCallId: toolName, toolName, input },
+				context,
+			),
+			{
+				block: true,
+				reason: `Permission policy denied ${key} for target ${target} by rule ${
+					key === "read" && toolName === "ls" ? "." : "private/**"
+				}; do not seek alternate tools, paths, or commands to bypass this restriction.`,
+			},
+		);
+	}
+});
+
+test("allows unmatched exploration calls at Pi's tool_call boundary", async () => {
+	const handler = await captureToolCallHandler({
+		read: { "private/**": "deny", private: "deny" },
+	});
+	const context = { cwd } as never;
+	for (const [toolName, input] of [
+		["read", { path: "public/notes.md" }],
+		["grep", { path: "public", glob: "**/*.md" }],
+		["find", { path: "public", pattern: "**/*.ts" }],
+		["ls", { path: "public" }],
+		["read", {}],
+		["grep", {}],
+		["find", {}],
+		["ls", {}],
+		["other", {}],
+	] as const) {
+		assert.equal(
+			await handler(
+				{ type: "tool_call", toolCallId: toolName, toolName, input },
+				context,
+			),
+			undefined,
+			`${toolName} should be allowed`,
+		);
+	}
+});
+
+test("allows an exploration call matching an explicit allow rule at Pi's tool_call boundary", async () => {
+	const handler = await captureToolCallHandler({
+		read: { "**/*.ts": "deny", "*.ts": "allow" },
+	});
+
+	assert.equal(
+		await handler(
+			{
+				type: "tool_call",
+				toolCallId: "explicit-find-allow",
+				toolName: "find",
+				input: { path: "src", pattern: "*.ts" },
+			},
+			{ cwd } as never,
+		),
+		undefined,
+	);
+});
+
+test("allows each supported exploration tool through a matched allow rule", async () => {
+	const handler = await captureToolCallHandler({
+		read: {
+			"**": "deny",
+			"**/*.txt": "deny",
+			"public/**": "allow",
+			public: "allow",
+		},
+	});
+	for (const [toolName, input] of [
+		["read", { path: "public/note.txt" }],
+		["grep", { path: "public", glob: "**/*.txt" }],
+		["find", { path: "public", pattern: "**/*.txt" }],
+		["ls", { path: "public" }],
+	] as const) {
+		assert.equal(
+			await handler(
+				{ type: "tool_call", toolCallId: toolName, toolName, input },
+				{ cwd } as never,
+			),
+			undefined,
+			`${toolName} should be allowed by its matched allow rule`,
+		);
+	}
+});
+
 test("reloads trusted project permissions without allowing untrusted overrides", async () => {
 	const root = await mkdtemp(join(tmpdir(), "pi-plus-plus-permissions-"));
 	const agentDir = join(root, "agent");
@@ -460,13 +753,13 @@ test("reloads trusted project permissions without allowing untrusted overrides",
 		await writeFile(
 			join(agentDir, "settings.json"),
 			JSON.stringify({
-				ppp: { permission: { edit: { "secret.txt": "deny" } } },
+				ppp: { permission: { write: { "secret.txt": "deny" } } },
 			}),
 		);
 		await writeFile(
 			join(projectDir, ".pi", "settings.json"),
 			JSON.stringify({
-				ppp: { permission: { edit: { "secret.txt": "allow" } } },
+				ppp: { permission: { write: { "secret.txt": "allow" } } },
 			}),
 		);
 		process.env.PI_CODING_AGENT_DIR = agentDir;
@@ -502,7 +795,7 @@ test("reloads trusted project permissions without allowing untrusted overrides",
 		assert.deepEqual(await toolCall(call, context(false)), {
 			block: true,
 			reason:
-				"Permission policy denied edit for target secret.txt by rule secret.txt; do not seek alternate tools, paths, or commands to bypass this restriction.",
+				"Permission policy denied write for target secret.txt by rule secret.txt; do not seek alternate tools, paths, or commands to bypass this restriction.",
 		});
 	} finally {
 		if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
@@ -516,10 +809,16 @@ test("registers the permissions tool_call hook through the exported extension", 
 	extension({
 		registerFlag(): void {},
 		registerCommand(): void {},
-		on(event: string): void {
-			if (event === "tool_call") toolCallRegistered = true;
+		getFlag(): undefined {
+			return undefined;
 		},
-		registerTool(): void {},
-	} as unknown as ExtensionAPI);
+		getActiveTools(): string[] {
+			return [];
+		},
+		setActiveTools(): void {},
+		...mockExtensionAPI((event: string): void => {
+			if (event === "tool_call") toolCallRegistered = true;
+		}),
+	});
 	assert.equal(toolCallRegistered, true);
 });

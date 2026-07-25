@@ -7,9 +7,18 @@ import {
 	createPermissionPolicyCache,
 	evaluatePermission,
 	loadPermissionPolicy,
+	type PermissionAction,
+	type PermissionKey,
 	type PermissionPolicy,
 	type PermissionSettingsError,
 } from "../../core/permissions/index.ts";
+
+type Settings = ReturnType<SettingsManager["getGlobalSettings"]>;
+type ExtendedSettings = Settings & {
+	ppp?: {
+		permission?: Partial<Record<PermissionKey, Record<string, PermissionAction>>>;
+	};
+};
 
 export type {
 	PermissionAction,
@@ -38,8 +47,8 @@ function loadPolicy(cwd: string, projectTrusted: boolean): PermissionPolicy {
 			}),
 		);
 	return loadPermissionPolicy(
-		settings.getGlobalSettings(),
-		projectTrusted ? settings.getProjectSettings() : undefined,
+		settings.getGlobalSettings() as ExtendedSettings,
+		projectTrusted ? (settings.getProjectSettings() as ExtendedSettings) : undefined,
 		errors,
 	);
 }

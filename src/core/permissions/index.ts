@@ -2,7 +2,18 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import { minimatch } from "minimatch";
 
 export type PermissionAction = "allow" | "deny";
-export type PermissionKey = "edit" | "bash";
+const PERMISSION_KEYS = ["read", "write", "bash"] as const;
+export type PermissionKey = (typeof PERMISSION_KEYS)[number];
+// Maps tool names to permission categories.
+const TOOL_PERMISSION_KEYS: Record<string, PermissionKey> = {
+	write: "write",
+	edit: "write",
+	bash: "bash",
+	read: "read",
+	grep: "read",
+	find: "read",
+	ls: "read",
+};
 export type PermissionRules = Record<string, PermissionAction>;
 export type PermissionSettings = Partial<
 	Record<PermissionKey, PermissionRules>
@@ -62,9 +73,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function mergeRules(
-	globalRules: Record<string, unknown>,
-	projectRules: Record<string, unknown>,
-): Record<string, unknown> {
+	globalRules: PermissionRules,
+	projectRules: PermissionRules,
+): PermissionRules {
 	return { ...globalRules, ...projectRules };
 }
 
@@ -72,7 +83,7 @@ function readPermissionSettings(value: unknown): PermissionSettings {
 	if (!isRecord(value)) throw new Error("ppp.permission must be an object");
 
 	const settings: PermissionSettings = {};
-	for (const key of ["edit", "bash"] as const) {
+	for (const key of PERMISSION_KEYS) {
 		if (value[key] === undefined) continue;
 		if (!isRecord(value[key]))
 			throw new Error(`ppp.permission.${key} must be an object`);
@@ -153,15 +164,18 @@ export function loadPermissionPolicy(
 			throw new Error("ppp.permission must be an object");
 		if (projectPermission !== undefined && !isRecord(projectPermission))
 			throw new Error("ppp.permission must be an object");
-		const globalRules = (globalPermission ?? {}) as Record<string, unknown>;
-		const projectRules = (projectPermission ?? {}) as Record<string, unknown>;
-		const merged: Record<string, unknown> = { ...globalRules, ...projectRules };
-		for (const key of ["edit", "bash"] as const) {
+		const globalRules = globalPermission ?? {};
+		const projectRules = projectPermission ?? {};
+		const merged: PermissionSettings = { ...globalRules, ...projectRules };
+		for (const key of PERMISSION_KEYS) {
 			if (globalRules[key] !== undefined && projectRules[key] !== undefined) {
 				if (!isRecord(globalRules[key]) || !isRecord(projectRules[key])) {
 					throw new Error(`ppp.permission.${key} must be an object`);
 				}
-				merged[key] = mergeRules(globalRules[key], projectRules[key]);
+				merged[key] = mergeRules(
+					globalRules[key] as PermissionRules,
+					projectRules[key] as PermissionRules,
+				);
 			}
 		}
 		return {
@@ -210,6 +224,54 @@ function normalizePath(value: string, cwd: string): string {
 		return absolute;
 	}
 	return relativePath.split(sep).join("/");
+}
+
+/* Computes path targets to evaluate for an exploration tool call.
+ * Returns the base directory plus any effective glob/pattern target so rules can match either. */
+function normalizeExplorationTargets(
+	toolName: string,
+	input: Record<string, unknown>,
+	cwd: string,
+): string[] {
+	const rawPath = typeof input.path === "string" ? input.path : "";
+	const searchPath = rawPath || ".";
+	const baseTarget = normalizePath(searchPath, cwd);
+	if (toolName === "grep") {
+		const glob = typeof input.glob === "string" ? input.glob : "";
+		const effectiveTarget = normalizePath(
+			glob ? resolve(cwd, searchPath, glob) : searchPath,
+			cwd,
+		);
+		return effectiveTarget === baseTarget
+			? [baseTarget]
+			: [baseTarget, effectiveTarget];
+	}
+	if (toolName === "find") {
+		const pattern = typeof input.pattern === "string" ? input.pattern : "";
+		// Basename-only patterns match filenames at any depth, so evaluate
+		// them as-is rather than joining with the search path.
+		if (pattern && !pattern.includes("/"))
+			return baseTarget === pattern ? [baseTarget] : [baseTarget, pattern];
+		let effectivePattern = pattern;
+		// Prefix relative path patterns with "**/" so they match at any
+		// depth rather than only from the search root.
+		if (
+			pattern.includes("/") &&
+			!pattern.startsWith("/") &&
+			!pattern.startsWith("**/") &&
+			pattern !== "**"
+		) {
+			effectivePattern = `**/${pattern}`;
+		}
+		const effectiveTarget = normalizePath(
+			resolve(cwd, searchPath, effectivePattern),
+			cwd,
+		);
+		return effectiveTarget === baseTarget
+			? [baseTarget]
+			: [baseTarget, effectiveTarget];
+	}
+	return [toolName === "ls" ? baseTarget : normalizePath(rawPath, cwd)];
 }
 
 function matches(pattern: string, target: string): boolean {
@@ -384,12 +446,7 @@ export function evaluatePermission(
 		"configuration" in policyOrSettings
 			? policyOrSettings
 			: { settings: policyOrSettings, configuration: { status: "valid" } };
-	const key =
-		call.toolName === "write" || call.toolName === "edit"
-			? "edit"
-			: call.toolName === "bash"
-				? "bash"
-				: undefined;
+	const key = TOOL_PERMISSION_KEYS[call.toolName];
 	if (!key) return { action: "allow" };
 	if (policy.configuration.status === "invalid") {
 		return {
@@ -426,6 +483,17 @@ export function evaluatePermission(
 		}
 		return { action: "allow" };
 	}
-	const path = typeof call.input.path === "string" ? call.input.path : "";
-	return evaluateTarget(rules, normalizePath(path, cwd), key);
+	// Deny takes precedence and short-circuits; otherwise track the most
+	// recent matching allow so the decision reflects the last matching rule.
+	let allowed: PermissionDecision = { action: "allow" };
+	for (const target of normalizeExplorationTargets(
+		call.toolName,
+		call.input,
+		cwd,
+	)) {
+		const result = evaluateTarget(rules, target, key);
+		if (result.action === "deny") return result;
+		if (result.action === "allow" && result.rule) allowed = result;
+	}
+	return allowed;
 }

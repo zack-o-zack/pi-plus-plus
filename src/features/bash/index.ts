@@ -32,7 +32,7 @@ function prepareBashArguments(args: unknown): BashDescriptionInput {
 	return {
 		...(values as Partial<BashDescriptionInput>),
 		description: normalizeBashDescription(
-			(values as Record<string, unknown>).description,
+			(values as Partial<BashDescriptionInput>).description,
 		),
 	} as BashDescriptionInput;
 }
