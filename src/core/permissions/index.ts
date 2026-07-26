@@ -1,7 +1,8 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { minimatch } from "minimatch";
 
-export type PermissionAction = "allow" | "deny";
+export type PermissionAction = "allow" | "ask" | "deny";
+export type PermissionEvaluationMode = "tui" | "rpc" | "json" | "print";
 const PERMISSION_KEYS = ["read", "write", "bash"] as const;
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
 // Maps tool names to permission categories.
@@ -47,6 +48,14 @@ export type PermissionDecision =
 			reason?: string;
 	  }
 	| {
+			action: "ask";
+			key: PermissionKey;
+			target: string;
+			rule: string;
+			reason: string;
+			actionContext: string;
+	  }
+	| {
 			action: "deny";
 			key: PermissionKey;
 			target: string;
@@ -89,9 +98,9 @@ function readPermissionSettings(value: unknown): PermissionSettings {
 			throw new Error(`ppp.permission.${key} must be an object`);
 		const rules: PermissionRules = {};
 		for (const [pattern, action] of Object.entries(value[key])) {
-			if (action !== "allow" && action !== "deny") {
+			if (action !== "allow" && action !== "ask" && action !== "deny") {
 				throw new Error(
-					`Invalid ppp.permission.${key}.${pattern}: must be allow or deny`,
+					`Invalid ppp.permission.${key}.${pattern}: must be allow, ask, or deny`,
 				);
 			}
 			if (
@@ -226,6 +235,17 @@ function normalizePath(value: string, cwd: string): string {
 	return relativePath.split(sep).join("/");
 }
 
+interface PermissionCallInterpretation {
+	key: PermissionKey | undefined;
+	actionContext?: string;
+	targets?: string[];
+	bash?: {
+		command: string;
+		segments: string[];
+		ambiguous: boolean;
+	};
+}
+
 /* Computes path targets to evaluate for an exploration tool call.
  * Returns the base directory plus any effective glob/pattern target so rules can match either. */
 function normalizeExplorationTargets(
@@ -274,6 +294,72 @@ function normalizeExplorationTargets(
 	return [toolName === "ls" ? baseTarget : normalizePath(rawPath, cwd)];
 }
 
+function interpretPermissionCall(
+	call: PermissionCall,
+	cwd: string,
+): PermissionCallInterpretation {
+	const key = TOOL_PERMISSION_KEYS[call.toolName];
+	if (!key) return { key };
+
+	if (call.toolName === "bash") {
+		const command =
+			typeof call.input.command === "string" ? call.input.command : "";
+		const normalized = normalizeBashLineContinuations(command);
+		const parsed = normalized.ambiguous
+			? { segments: [], ambiguous: true }
+			: splitBash(normalized.command);
+		return {
+			key,
+			actionContext: `Allow bash command?\n${command
+				.split("\n")
+				.map((line) => `$ ${line}`)
+				.join("\n")}`,
+			bash: {
+				command,
+				segments: parsed.segments,
+				ambiguous: parsed.ambiguous,
+			},
+		};
+	}
+
+	const path = typeof call.input.path === "string" ? call.input.path : "";
+	const displayPath = path || ".";
+	let actionContext: string;
+	if (call.toolName === "read")
+		actionContext = `Allow read from path?\n${path}`;
+	else if (call.toolName === "write")
+		actionContext = `Allow write to file?\n${path}`;
+	else if (call.toolName === "edit")
+		actionContext = `Allow edit of file?\n${path}`;
+	else if (call.toolName === "ls")
+		actionContext = `Allow list path?\n${displayPath}`;
+	else if (call.toolName === "grep") {
+		actionContext = [
+			"Allow grep search?",
+			`Pattern: ${call.input.pattern ?? ""}`,
+			`Path: ${displayPath}`,
+			typeof call.input.glob === "string" && call.input.glob
+				? `Glob: ${call.input.glob}`
+				: undefined,
+		]
+			.filter((line): line is string => line !== undefined)
+			.join("\n");
+	} else {
+		actionContext = [
+			"Allow find search?",
+			`Pattern: ${call.input.pattern ?? ""}`,
+			`Path: ${displayPath}`,
+		]
+			.filter((line): line is string => line !== undefined)
+			.join("\n");
+	}
+	return {
+		key,
+		actionContext,
+		targets: normalizeExplorationTargets(call.toolName, call.input, cwd),
+	};
+}
+
 function matches(pattern: string, target: string): boolean {
 	if (pattern.startsWith("/") && pattern.endsWith("/") && pattern.length > 1) {
 		return new RegExp(pattern.slice(1, -1)).test(target);
@@ -285,19 +371,28 @@ function evaluateTarget(
 	rules: PermissionRules | undefined,
 	target: string,
 	key: PermissionKey,
+	mode: PermissionEvaluationMode,
+	actionContext: string,
 ): PermissionDecision {
 	if (!rules) return { action: "allow" };
-	let result: PermissionDecision = { action: "allow" };
-	// Preserve object order so the last matching rule determines the result.
-	for (const [rule, action] of Object.entries(rules)) {
-		if (matches(rule, target)) {
-			result =
-				action === "deny"
-					? { action, key, target, rule, reason: "Matched deny rule" }
-					: { action, key, target, rule, reason: "Matched allow rule" };
-		}
+	const entries = Object.entries(rules);
+	// Scan backward so non-TUI modes can skip an ask without considering rules
+	// that occur after it in the configured order.
+	for (let index = entries.length - 1; index >= 0; index--) {
+		const [rule, action] = entries[index];
+		if (!matches(rule, target) || (action === "ask" && mode !== "tui"))
+			continue;
+		const reason =
+			action === "deny"
+				? "Matched deny rule"
+				: action === "ask"
+					? "Matched ask rule"
+					: "Matched allow rule";
+		if (action === "ask")
+			return { action, key, target, rule, reason, actionContext };
+		return { action, key, target, rule, reason };
 	}
-	return result;
+	return { action: "allow" };
 }
 
 function splitBash(command: string): {
@@ -441,13 +536,17 @@ export function evaluatePermission(
 	policyOrSettings: PermissionPolicy | PermissionSettings,
 	call: PermissionCall,
 	cwd: string,
+	mode: PermissionEvaluationMode = "tui",
 ): PermissionDecision {
 	const policy: PermissionPolicy =
 		"configuration" in policyOrSettings
 			? policyOrSettings
 			: { settings: policyOrSettings, configuration: { status: "valid" } };
-	const key = TOOL_PERMISSION_KEYS[call.toolName];
+	const interpretation = interpretPermissionCall(call, cwd);
+	const key = interpretation.key;
 	if (!key) return { action: "allow" };
+	const actionContext = interpretation.actionContext;
+	if (actionContext === undefined) return { action: "allow" };
 	if (policy.configuration.status === "invalid") {
 		return {
 			action: "invalid-configuration",
@@ -456,44 +555,36 @@ export function evaluatePermission(
 	}
 	const rules = policy.settings[key];
 	if (key === "bash") {
-		const command =
-			typeof call.input.command === "string" ? call.input.command : "";
 		if (!rules || Object.keys(rules).length === 0) return { action: "allow" };
-		const normalized = normalizeBashLineContinuations(command);
-		if (normalized.ambiguous) {
+		const bash = interpretation.bash;
+		if (!bash || bash.ambiguous) {
 			return {
 				action: "deny",
 				key,
-				target: command,
+				target: bash?.command ?? "",
 				reason: "Bash syntax is ambiguous",
 			};
 		}
-		const parsed = splitBash(normalized.command);
-		if (parsed.ambiguous) {
-			return {
-				action: "deny",
-				key,
-				target: command,
-				reason: "Bash syntax is ambiguous",
-			};
-		}
-		for (const segment of parsed.segments) {
-			const result = evaluateTarget(rules, segment, key);
+		let asking: PermissionDecision | undefined;
+		for (const segment of bash.segments) {
+			const result = evaluateTarget(rules, segment, key, mode, actionContext);
 			if (result.action === "deny") return result;
+			if (result.action === "ask") asking = result;
 		}
-		return { action: "allow" };
+		return asking ?? { action: "allow" };
 	}
 	// Deny takes precedence and short-circuits; otherwise track the most
 	// recent matching allow so the decision reflects the last matching rule.
 	let allowed: PermissionDecision = { action: "allow" };
-	for (const target of normalizeExplorationTargets(
-		call.toolName,
-		call.input,
-		cwd,
-	)) {
-		const result = evaluateTarget(rules, target, key);
+	let asking: PermissionDecision | undefined;
+	for (const target of interpretation.targets ?? []) {
+		const result = evaluateTarget(rules, target, key, mode, actionContext);
 		if (result.action === "deny") return result;
+		if (result.action === "ask") {
+			asking = result;
+			continue;
+		}
 		if (result.action === "allow" && result.rule) allowed = result;
 	}
-	return allowed;
+	return asking ?? allowed;
 }
