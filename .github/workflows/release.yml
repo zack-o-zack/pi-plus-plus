@@ -29,20 +29,24 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
-      - name: Bump version and update changelog
-        id: bump
+      - name: Prepare release
+        id: release
         run: |
-          node scripts/release.mjs
+          if node --input-type=module -e "import { readFileSync } from 'node:fs'; import { extractUnreleased } from './scripts/release.mjs'; process.exit(extractUnreleased(readFileSync('CHANGELOG.md', 'utf8')) ? 0 : 1)"; then
+            node scripts/release.mjs
+            npm install --package-lock-only --ignore-scripts
+          fi
           version="$(node -p "require('./package.json').version")"
-          npm install --package-lock-only --ignore-scripts
+          package_name="$(node -p "require('./package.json').name")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "package_name=$package_name" >> "$GITHUB_OUTPUT"
 
       - name: Validate release package
         run: npm run check
 
       - name: Extract release notes
         env:
-          VERSION: ${{ steps.bump.outputs.version }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
           awk -v version="$VERSION" '
             $0 ~ "^## " version " - " { capture = 1; next }
@@ -51,26 +55,57 @@ jobs:
           ' CHANGELOG.md > release-notes.md
           test -s release-notes.md
 
-      - name: Commit and tag
+      - name: Check release state
+        id: state
         env:
-          VERSION: ${{ steps.bump.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PACKAGE_NAME: ${{ steps.release.outputs.package_name }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md package.json package-lock.json
-          git commit -m "chore: release v${VERSION}"
-          git tag "v${VERSION}"
-          git push --atomic origin HEAD:main "v${VERSION}"
+          if npm view "${PACKAGE_NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "npm_published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "npm_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null 2>&1; then
+            echo "refs_pushed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "refs_pushed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if gh release view "v${VERSION}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "github_released=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "github_released=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Publish package
+        if: steps.state.outputs.npm_published != 'true'
         run: npm run release
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Commit and tag
+        if: steps.state.outputs.refs_pushed != 'true'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md package.json package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: release v${VERSION}"
+          fi
+          git tag "v${VERSION}"
+          git push --atomic origin HEAD:main "v${VERSION}"
+
       - name: Create GitHub Release
+        if: steps.state.outputs.github_released != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.bump.outputs.version }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
           gh release create "v${VERSION}" \
             --repo "$GITHUB_REPOSITORY" \
