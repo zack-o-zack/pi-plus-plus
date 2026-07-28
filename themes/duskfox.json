@@ -1,0 +1,15 @@
+{
+	"$schema": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+	"name": "duskfox",
+	"vars": {
+		"base00": "#232136", "base01": "#2d2a45", "base02": "#373354", "base03": "#47407d", "base04": "#6e6a86", "base05": "#e0def4", "base06": "#cdcbe0", "base07": "#e2e0f7",
+		"base08": "#eb6f92", "base09": "#ea9a97", "base0A": "#f6c177", "base0B": "#a3be8c", "base0C": "#9ccfd8", "base0D": "#569fba", "base0E": "#c4a7e7", "base0F": "#eb98c3"
+	},
+	"colors": {
+		"accent": "base0D", "border": "base04", "borderAccent": "base0C", "borderMuted": "base04", "success": "base0B", "error": "base08", "warning": "base0A", "muted": "base06", "dim": "base06", "text": "base05", "thinkingText": "base06", "selectedBg": "base01",
+		"userMessageBg": "base01", "userMessageText": "base05", "customMessageBg": "base02", "customMessageText": "base05", "customMessageLabel": "base0E", "toolPendingBg": "base01", "toolSuccessBg": "base00", "toolErrorBg": "base02", "toolTitle": "base0C", "toolOutput": "base05",
+		"mdHeading": "base0E", "mdLink": "base0D", "mdLinkUrl": "base0C", "mdCode": "base0B", "mdCodeBlock": "base05", "mdCodeBlockBorder": "base04", "mdQuote": "base05", "mdQuoteBorder": "base0C", "mdHr": "base04", "mdListBullet": "base0D", "toolDiffAdded": "base0B", "toolDiffRemoved": "base08", "toolDiffContext": "base06",
+		"syntaxComment": "base07", "syntaxKeyword": "base0E", "syntaxFunction": "base0B", "syntaxVariable": "base05", "syntaxString": "base0B", "syntaxNumber": "base09", "syntaxType": "base0C", "syntaxOperator": "base0F", "syntaxPunctuation": "base07", "thinkingOff": "base04", "thinkingMinimal": "base04", "thinkingLow": "base0D", "thinkingMedium": "base0C", "thinkingHigh": "base0E", "thinkingXhigh": "base09", "thinkingMax": "base08", "bashMode": "base0A"
+	},
+	"export": { "pageBg": "base00", "cardBg": "base01", "infoBg": "base02" }
+}

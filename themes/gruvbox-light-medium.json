@@ -1,0 +1,16 @@
+{
+	"$schema": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+	"name": "gruvbox-light-medium",
+	"vars": {
+		"background": "#fbf1c7", "bg1": "#ebdbb2", "bg2": "#d5c4a1", "bg3": "#bdae93", "bg4": "#a89984", "gray": "#928374",
+		"text": "#3c3836", "red": "#9d0006", "orange": "#af3a03", "yellow": "#b57614", "green": "#79740e", "blue": "#076678", "purple": "#8f3f71", "aqua": "#427b58"
+	},
+	"colors": {
+		"accent": "text", "border": "blue", "borderAccent": "aqua", "borderMuted": "orange", "success": "green", "error": "red", "warning": "orange", "muted": "blue", "dim": "orange", "text": "text", "thinkingText": "blue",
+		"selectedBg": "bg2", "userMessageBg": "bg1", "userMessageText": "text", "customMessageBg": "bg2", "customMessageText": "text", "customMessageLabel": "text", "toolPendingBg": "bg1", "toolSuccessBg": "bg1", "toolErrorBg": "background", "toolTitle": "text", "toolOutput": "text",
+		"mdHeading": "orange", "mdLink": "blue", "mdLinkUrl": "blue", "mdCode": "aqua", "mdCodeBlock": "text", "mdCodeBlockBorder": "gray", "mdQuote": "text", "mdQuoteBorder": "gray", "mdHr": "gray", "mdListBullet": "aqua",
+		"toolDiffAdded": "green", "toolDiffRemoved": "red", "toolDiffContext": "text", "syntaxComment": "gray", "syntaxKeyword": "red", "syntaxFunction": "green", "syntaxVariable": "blue", "syntaxString": "green", "syntaxNumber": "purple", "syntaxType": "orange", "syntaxOperator": "text", "syntaxPunctuation": "blue",
+		"thinkingOff": "orange", "thinkingMinimal": "orange", "thinkingLow": "blue", "thinkingMedium": "aqua", "thinkingHigh": "purple", "thinkingXhigh": "orange", "thinkingMax": "red", "bashMode": "green"
+	},
+	"export": { "pageBg": "background", "cardBg": "bg1", "infoBg": "bg2" }
+}
