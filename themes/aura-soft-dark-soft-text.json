@@ -38,7 +38,7 @@
 		"customMessageLabel": "pink",
 		"toolPendingBg": "surface",
 		"toolSuccessBg": "panel",
-		"toolErrorBg": "surface",
+		"toolErrorBg": "background",
 		"toolTitle": "blue",
 		"toolOutput": "foreground",
 		"mdHeading": "pink",

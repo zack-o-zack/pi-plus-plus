@@ -41,7 +41,7 @@
 		"dim": "overlay2",
 		"text": "text",
 		"thinkingText": "subtext1",
-		"selectedBg": "base",
+		"selectedBg": "surface0",
 		"userMessageBg": "surface0",
 		"userMessageText": "text",
 		"customMessageBg": "surface0",

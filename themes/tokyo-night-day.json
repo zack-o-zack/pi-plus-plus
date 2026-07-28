@@ -22,7 +22,7 @@
 	},
 	"colors": {
 		"accent": "foreground", "border": "blue", "borderAccent": "cyan", "borderMuted": "muted", "success": "green", "error": "red", "warning": "yellow", "muted": "foreground", "dim": "foreground", "text": "foreground", "thinkingText": "blue",
-		"selectedBg": "background", "userMessageBg": "background", "userMessageText": "foreground", "customMessageBg": "background", "customMessageText": "foreground", "customMessageLabel": "foreground", "toolPendingBg": "background", "toolSuccessBg": "background", "toolErrorBg": "surface", "toolTitle": "foreground", "toolOutput": "foreground",
+		"selectedBg": "line", "userMessageBg": "background", "userMessageText": "foreground", "customMessageBg": "background", "customMessageText": "foreground", "customMessageLabel": "foreground", "toolPendingBg": "background", "toolSuccessBg": "line", "toolErrorBg": "surface", "toolTitle": "foreground", "toolOutput": "foreground",
 		"mdHeading": "foreground", "mdLink": "foreground", "mdLinkUrl": "cyan", "mdCode": "green", "mdCodeBlock": "foreground", "mdCodeBlockBorder": "muted", "mdQuote": "foreground", "mdQuoteBorder": "muted", "mdHr": "muted", "mdListBullet": "foreground",
 		"toolDiffAdded": "green", "toolDiffRemoved": "red", "toolDiffContext": "muted", "syntaxComment": "muted", "syntaxKeyword": "foreground", "syntaxFunction": "green", "syntaxVariable": "foreground", "syntaxString": "green", "syntaxNumber": "orange", "syntaxType": "cyan", "syntaxOperator": "foreground", "syntaxPunctuation": "foreground",
 		"thinkingOff": "blue", "thinkingMinimal": "blue", "thinkingLow": "blue", "thinkingMedium": "cyan", "thinkingHigh": "purple", "thinkingXhigh": "blue", "thinkingMax": "red", "bashMode": "green"

@@ -22,7 +22,7 @@
 		"success": "green", "error": "red", "warning": "orange", "muted": "aqua", "dim": "blue",
 		"text": "text", "thinkingText": "blue", "selectedBg": "bg1", "userMessageBg": "bg1",
 		"userMessageText": "text", "customMessageBg": "bg2", "customMessageText": "text",
-		"customMessageLabel": "text", "toolPendingBg": "bg1", "toolSuccessBg": "bg1", "toolErrorBg": "background",
+		"customMessageLabel": "text", "toolPendingBg": "bg1", "toolSuccessBg": "bg2", "toolErrorBg": "background",
 		"toolTitle": "aqua", "toolOutput": "text", "mdHeading": "yellow", "mdLink": "blue", "mdLinkUrl": "blue",
 		"mdCode": "aqua", "mdCodeBlock": "text", "mdCodeBlockBorder": "gray", "mdQuote": "text", "mdQuoteBorder": "gray",
 		"mdHr": "gray", "mdListBullet": "aqua", "toolDiffAdded": "green", "toolDiffRemoved": "red", "toolDiffContext": "text",

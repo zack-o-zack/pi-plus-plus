@@ -40,7 +40,7 @@
 		"customMessageLabel": "yellow",
 		"toolPendingBg": "surface",
 		"toolSuccessBg": "panel",
-		"toolErrorBg": "surface",
+		"toolErrorBg": "line",
 		"toolTitle": "foreground",
 		"toolOutput": "foreground",
 		"mdHeading": "red",

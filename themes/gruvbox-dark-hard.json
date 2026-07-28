@@ -36,7 +36,7 @@
 		"customMessageText": "text",
 		"customMessageLabel": "text",
 		"toolPendingBg": "bg1",
-		"toolSuccessBg": "bg1",
+		"toolSuccessBg": "bg2",
 		"toolErrorBg": "background",
 		"toolTitle": "aqua",
 		"toolOutput": "text",

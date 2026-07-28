@@ -39,7 +39,7 @@
 		"customMessageLabel": "nord6",
 		"toolPendingBg": "nord1",
 		"toolSuccessBg": "nord0",
-		"toolErrorBg": "nord1",
+		"toolErrorBg": "nord2",
 		"toolTitle": "nord8",
 		"toolOutput": "nord4",
 		"mdHeading": "nord7",

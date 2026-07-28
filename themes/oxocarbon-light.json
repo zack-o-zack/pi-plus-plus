@@ -9,7 +9,7 @@
 	},
 	"colors": {
 		"accent": "base03", "border": "base04", "borderAccent": "base0B", "borderMuted": "base03", "success": "base0B", "error": "base0C", "warning": "base0C", "muted": "base03", "dim": "base03", "text": "base04", "thinkingText": "base03",
-		"selectedBg": "base01", "userMessageBg": "base01", "userMessageText": "base04", "customMessageBg": "base01", "customMessageText": "base04", "customMessageLabel": "base0C", "toolPendingBg": "base01", "toolSuccessBg": "base01", "toolErrorBg": "base02", "toolTitle": "base03", "toolOutput": "base04",
+		"selectedBg": "base01", "userMessageBg": "base01", "userMessageText": "base04", "customMessageBg": "base01", "customMessageText": "base04", "customMessageLabel": "base0C", "toolPendingBg": "base01", "toolSuccessBg": "base00", "toolErrorBg": "base02", "toolTitle": "base03", "toolOutput": "base04",
 		"mdHeading": "base0C", "mdLink": "base0B", "mdLinkUrl": "base0C", "mdCode": "base0B", "mdCodeBlock": "base03", "mdCodeBlockBorder": "base04", "mdQuote": "base05", "mdQuoteBorder": "base04", "mdHr": "base04", "mdListBullet": "base0B",
 		"toolDiffAdded": "base0B", "toolDiffRemoved": "base0C", "toolDiffContext": "base04",
 		"syntaxComment": "base03", "syntaxKeyword": "base09", "syntaxFunction": "base0B", "syntaxVariable": "base04", "syntaxString": "base0B", "syntaxNumber": "base0C", "syntaxType": "base0C", "syntaxOperator": "base0B", "syntaxPunctuation": "base0B",

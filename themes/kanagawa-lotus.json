@@ -36,7 +36,7 @@
 		"dim": "purple",
 		"text": "foreground",
 		"thinkingText": "accent",
-		"selectedBg": "background",
+		"selectedBg": "selection",
 		"userMessageBg": "selection",
 		"userMessageText": "foreground",
 		"customMessageBg": "surface",

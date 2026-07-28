@@ -33,7 +33,7 @@
 		"customMessageLabel": "yellow",
 		"toolPendingBg": "black",
 		"toolSuccessBg": "background",
-		"toolErrorBg": "black",
+		"toolErrorBg": "foreground",
 		"toolTitle": "yellow",
 		"toolOutput": "foreground",
 		"mdHeading": "yellow",

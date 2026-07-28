@@ -7,7 +7,7 @@
 	},
 	"colors": {
 		"accent": "text", "border": "blue", "borderAccent": "aqua", "borderMuted": "orange", "success": "green", "error": "red", "warning": "orange", "muted": "blue", "dim": "orange", "text": "text", "thinkingText": "blue",
-		"selectedBg": "bg2", "userMessageBg": "bg1", "userMessageText": "text", "customMessageBg": "bg2", "customMessageText": "text", "customMessageLabel": "text", "toolPendingBg": "bg1", "toolSuccessBg": "bg1", "toolErrorBg": "background", "toolTitle": "text", "toolOutput": "text",
+		"selectedBg": "bg2", "userMessageBg": "bg1", "userMessageText": "text", "customMessageBg": "bg2", "customMessageText": "text", "customMessageLabel": "text", "toolPendingBg": "bg1", "toolSuccessBg": "bg2", "toolErrorBg": "background", "toolTitle": "text", "toolOutput": "text",
 		"mdHeading": "orange", "mdLink": "blue", "mdLinkUrl": "blue", "mdCode": "aqua", "mdCodeBlock": "text", "mdCodeBlockBorder": "gray", "mdQuote": "text", "mdQuoteBorder": "gray", "mdHr": "gray", "mdListBullet": "aqua",
 		"toolDiffAdded": "green", "toolDiffRemoved": "red", "toolDiffContext": "text", "syntaxComment": "gray", "syntaxKeyword": "red", "syntaxFunction": "green", "syntaxVariable": "blue", "syntaxString": "green", "syntaxNumber": "purple", "syntaxType": "orange", "syntaxOperator": "text", "syntaxPunctuation": "blue",
 		"thinkingOff": "orange", "thinkingMinimal": "orange", "thinkingLow": "blue", "thinkingMedium": "aqua", "thinkingHigh": "purple", "thinkingXhigh": "orange", "thinkingMax": "red", "bashMode": "green"

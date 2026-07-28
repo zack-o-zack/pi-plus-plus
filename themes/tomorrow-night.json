@@ -35,7 +35,7 @@
 		"customMessageText": "foreground",
 		"customMessageLabel": "purple",
 		"toolPendingBg": "line",
-		"toolSuccessBg": "line",
+		"toolSuccessBg": "background",
 		"toolErrorBg": "selection",
 		"toolTitle": "foreground",
 		"toolOutput": "foreground",
