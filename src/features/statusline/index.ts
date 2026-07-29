@@ -155,8 +155,7 @@ function formatTokens(count: number): string {
 
 function formatCost(cost: number): string {
 	if (cost === 0) return "$0.00";
-	const precision = cost < 1 ? 6 : 3;
-	return `$${cost.toFixed(precision).replace(/0+$/, "").replace(/\.$/, "")}`;
+	return `$${cost.toFixed(2)}`;
 }
 
 export function sanitizeStatusText(text: string): string {

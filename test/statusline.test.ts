@@ -694,7 +694,7 @@ test("renders the exact shape with aggregate usage", () => {
 	const rendered = widget(ctx, themed(calls)).render(300)[0];
 	assert.equal(
 		stripVTControlCharacters(rendered),
-		"[project:main | ctx 75.0% (750) | $0.123] [↑100 ↓200 | cache ↑300 ↓50]",
+		"[project:main | ctx 75.0% (750) | $0.12] [↑100 ↓200 | cache ↑300 ↓50]",
 	);
 	for (const obsolete of ["gpt-test", "openai", "medium", "Unknown"])
 		assert.ok(!rendered.includes(obsolete));
@@ -706,7 +706,7 @@ test("renders the exact shape with aggregate usage", () => {
 		calls.filter(([color]) => color === "success"),
 		[
 			["success", ":"],
-			["success", "$0.123"],
+			["success", "$0.12"],
 			["success", "↑"],
 			["success", "↓"],
 			["success", "↑"],
