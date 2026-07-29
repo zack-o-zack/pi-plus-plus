@@ -11,7 +11,8 @@
 		"yellow": "#FFC135",
 		"blue": "#42A5F5",
 		"magenta": "#D81B60",
-		"cyan": "#00ACC1"
+		"cyan": "#00ACC1",
+		"errorSurface": "#2d1a1a"
 	},
 	"colors": {
 		"accent": "yellow",
@@ -33,7 +34,7 @@
 		"customMessageLabel": "yellow",
 		"toolPendingBg": "black",
 		"toolSuccessBg": "background",
-		"toolErrorBg": "foreground",
+		"toolErrorBg": "errorSurface",
 		"toolTitle": "yellow",
 		"toolOutput": "foreground",
 		"mdHeading": "yellow",

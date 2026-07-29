@@ -44,7 +44,7 @@
 		"toolPendingBg": "cursorline",
 		"toolSuccessBg": "color00",
 		"toolErrorBg": "panel",
-		"toolTitle": "color14",
+		"toolTitle": "color04",
 		"toolOutput": "color07",
 		"mdHeading": "color10",
 		"mdLink": "color14",

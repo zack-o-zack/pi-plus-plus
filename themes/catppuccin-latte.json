@@ -48,7 +48,7 @@
 		"customMessageText": "text",
 		"customMessageLabel": "text",
 		"toolPendingBg": "surface0",
-		"toolSuccessBg": "surface1",
+		"toolSuccessBg": "mantle",
 		"toolErrorBg": "base",
 		"toolTitle": "text",
 		"toolOutput": "text",
