@@ -1,0 +1,12 @@
+{
+	"$schema": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+	"name": "everforest-dark-medium",
+	"vars": {
+		"background": "#2d353b", "bgDim": "#232a2e", "bg1": "#343f44", "bg2": "#3d484d", "bg3": "#475258", "bg4": "#4f585e", "bgVisual": "#543a48", "bgRed": "#514045", "bgYellow": "#4d4c43", "bgGreen": "#425047", "bgPurple": "#4a444e",
+		"gray": "#859289", "grayDim": "#7a8478", "text": "#d3c6aa", "red": "#e67e80", "orange": "#e69875", "yellow": "#dbbc7f", "green": "#a7c080", "blue": "#7fbbb3", "purple": "#d699b6", "aqua": "#83c092"
+	},
+	"colors": {
+		"accent": "aqua", "border": "blue", "borderAccent": "aqua", "borderMuted": "blue", "success": "green", "error": "red", "warning": "yellow", "muted": "blue", "dim": "blue", "text": "text", "thinkingText": "purple", "selectedBg": "bgVisual", "userMessageBg": "bg1", "userMessageText": "text", "customMessageBg": "bgPurple", "customMessageText": "text", "customMessageLabel": "text", "toolPendingBg": "bgYellow", "toolSuccessBg": "bgDim", "toolErrorBg": "bgRed", "toolTitle": "text", "toolOutput": "text", "mdHeading": "yellow", "mdLink": "blue", "mdLinkUrl": "gray", "mdCode": "aqua", "mdCodeBlock": "text", "mdCodeBlockBorder": "grayDim", "mdQuote": "gray", "mdQuoteBorder": "grayDim", "mdHr": "grayDim", "mdListBullet": "aqua", "toolDiffAdded": "green", "toolDiffRemoved": "red", "toolDiffContext": "gray", "syntaxComment": "grayDim", "syntaxKeyword": "red", "syntaxFunction": "green", "syntaxVariable": "text", "syntaxString": "green", "syntaxNumber": "purple", "syntaxType": "yellow", "syntaxOperator": "orange", "syntaxPunctuation": "grayDim", "thinkingOff": "grayDim", "thinkingMinimal": "gray", "thinkingLow": "blue", "thinkingMedium": "aqua", "thinkingHigh": "purple", "thinkingXhigh": "orange", "thinkingMax": "red", "bashMode": "green"
+	},
+	"export": { "pageBg": "background", "cardBg": "bg1", "infoBg": "bg2" }
+}

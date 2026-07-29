@@ -1,0 +1,19 @@
+{
+	"$schema": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+	"name": "oxocarbon-light",
+	"vars": {
+		"base00": "#FFFFFF", "base01": "#F2F4F8", "base02": "#DDE1E6", "base03": "#161616",
+		"base04": "#37474F", "base05": "#90A4AE", "base06": "#525252", "base07": "#08BDBA",
+		"base08": "#FF7EB6", "base09": "#EE5396", "base0A": "#FF6F00", "base0B": "#0F62FE",
+		"base0C": "#673AB7", "base0D": "#42BE65", "base0E": "#BE95FF", "base0F": "#FFAB91"
+	},
+	"colors": {
+		"accent": "base03", "border": "base04", "borderAccent": "base0B", "borderMuted": "base03", "success": "base0B", "error": "base0C", "warning": "base0C", "muted": "base03", "dim": "base03", "text": "base04", "thinkingText": "base03",
+		"selectedBg": "base01", "userMessageBg": "base01", "userMessageText": "base04", "customMessageBg": "base01", "customMessageText": "base04", "customMessageLabel": "base0C", "toolPendingBg": "base01", "toolSuccessBg": "base00", "toolErrorBg": "base02", "toolTitle": "base03", "toolOutput": "base04",
+		"mdHeading": "base0C", "mdLink": "base0B", "mdLinkUrl": "base0C", "mdCode": "base0B", "mdCodeBlock": "base03", "mdCodeBlockBorder": "base04", "mdQuote": "base05", "mdQuoteBorder": "base04", "mdHr": "base04", "mdListBullet": "base0B",
+		"toolDiffAdded": "base0B", "toolDiffRemoved": "base0C", "toolDiffContext": "base04",
+		"syntaxComment": "base03", "syntaxKeyword": "base09", "syntaxFunction": "base0B", "syntaxVariable": "base04", "syntaxString": "base0B", "syntaxNumber": "base0C", "syntaxType": "base0C", "syntaxOperator": "base0B", "syntaxPunctuation": "base0B",
+		"thinkingOff": "base03", "thinkingMinimal": "base03", "thinkingLow": "base0B", "thinkingMedium": "base0C", "thinkingHigh": "base0C", "thinkingXhigh": "base09", "thinkingMax": "base09", "bashMode": "base0B"
+	},
+	"export": { "pageBg": "base00", "cardBg": "base01", "infoBg": "base01" }
+}

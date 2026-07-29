@@ -5,11 +5,15 @@
   "type": "module",
   "files": [
     "src",
+    "themes",
     "CHANGELOG.md"
   ],
   "pi": {
     "extensions": [
       "./src/index.ts"
+    ],
+    "themes": [
+      "./themes"
     ]
   },
   "peerDependencies": {

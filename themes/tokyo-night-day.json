@@ -1,0 +1,32 @@
+{
+	"$schema": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+	"name": "tokyo-night-day",
+	"vars": {
+		"background": "#e1e2e7",
+		"surface": "#d0d5e3",
+		"line": "#b7c1e3",
+		"panel": "#c4c8da",
+		"foreground": "#3760bf",
+		"toolText": "#1f3ca8",
+		"muted": "#6172b0",
+		"gray": "#a1a6c5",
+		"accent": "#2e7de9",
+		"red": "#c64343",
+		"orange": "#b15c00",
+		"yellow": "#8c6c3e",
+		"green": "#587539",
+		"teal": "#007197",
+		"cyan": "#007ea8",
+		"blue": "#2e7de9",
+		"purple": "#9854f1",
+		"pink": "#a463ff"
+	},
+	"colors": {
+		"accent": "foreground", "border": "blue", "borderAccent": "cyan", "borderMuted": "muted", "success": "green", "error": "red", "warning": "yellow", "muted": "foreground", "dim": "foreground", "text": "foreground", "thinkingText": "blue",
+		"selectedBg": "line", "userMessageBg": "background", "userMessageText": "foreground", "customMessageBg": "background", "customMessageText": "foreground", "customMessageLabel": "foreground", "toolPendingBg": "background", "toolSuccessBg": "line", "toolErrorBg": "surface", "toolTitle": "toolText", "toolOutput": "toolText",
+		"mdHeading": "foreground", "mdLink": "foreground", "mdLinkUrl": "cyan", "mdCode": "green", "mdCodeBlock": "foreground", "mdCodeBlockBorder": "muted", "mdQuote": "foreground", "mdQuoteBorder": "muted", "mdHr": "muted", "mdListBullet": "foreground",
+		"toolDiffAdded": "green", "toolDiffRemoved": "red", "toolDiffContext": "muted", "syntaxComment": "muted", "syntaxKeyword": "foreground", "syntaxFunction": "green", "syntaxVariable": "foreground", "syntaxString": "green", "syntaxNumber": "orange", "syntaxType": "cyan", "syntaxOperator": "foreground", "syntaxPunctuation": "foreground",
+		"thinkingOff": "blue", "thinkingMinimal": "blue", "thinkingLow": "blue", "thinkingMedium": "cyan", "thinkingHigh": "purple", "thinkingXhigh": "blue", "thinkingMax": "red", "bashMode": "green"
+	},
+	"export": { "pageBg": "background", "cardBg": "surface", "infoBg": "panel" }
+}

@@ -1,0 +1,31 @@
+{
+	"$schema": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+	"name": "tokyo-night-moon",
+	"vars": {
+		"background": "#222436",
+		"surface": "#1e2030",
+		"line": "#2f334d",
+		"panel": "#191B29",
+		"foreground": "#c8d3f5",
+		"muted": "#828bb8",
+		"gray": "#636da6",
+		"accent": "#82aaff",
+		"red": "#ff757f",
+		"orange": "#ff966c",
+		"yellow": "#ffc777",
+		"green": "#c3e88d",
+		"teal": "#4fd6be",
+		"cyan": "#86e1fc",
+		"blue": "#82aaff",
+		"purple": "#fca7ea",
+		"pink": "#c099ff"
+	},
+	"colors": {
+		"accent": "accent", "border": "blue", "borderAccent": "cyan", "borderMuted": "muted", "success": "green", "error": "red", "warning": "yellow", "muted": "muted", "dim": "muted", "text": "foreground", "thinkingText": "muted",
+		"selectedBg": "line", "userMessageBg": "panel", "userMessageText": "foreground", "customMessageBg": "surface", "customMessageText": "foreground", "customMessageLabel": "teal", "toolPendingBg": "panel", "toolSuccessBg": "surface", "toolErrorBg": "line", "toolTitle": "accent", "toolOutput": "foreground",
+		"mdHeading": "purple", "mdLink": "blue", "mdLinkUrl": "cyan", "mdCode": "green", "mdCodeBlock": "foreground", "mdCodeBlockBorder": "gray", "mdQuote": "foreground", "mdQuoteBorder": "muted", "mdHr": "gray", "mdListBullet": "accent",
+		"toolDiffAdded": "green", "toolDiffRemoved": "red", "toolDiffContext": "muted", "syntaxComment": "green", "syntaxKeyword": "pink", "syntaxFunction": "green", "syntaxVariable": "blue", "syntaxString": "green", "syntaxNumber": "orange", "syntaxType": "cyan", "syntaxOperator": "purple", "syntaxPunctuation": "foreground",
+		"thinkingOff": "muted", "thinkingMinimal": "muted", "thinkingLow": "blue", "thinkingMedium": "cyan", "thinkingHigh": "purple", "thinkingXhigh": "pink", "thinkingMax": "red", "bashMode": "green"
+	},
+	"export": { "pageBg": "background", "cardBg": "surface", "infoBg": "panel" }
+}
