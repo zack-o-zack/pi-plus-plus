@@ -9,13 +9,14 @@ import type {
 	ThemeColor,
 } from "@earendil-works/pi-coding-agent";
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
-import type { EditorTheme, TUI } from "@earendil-works/pi-tui";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { AccessMode } from "../access-mode/index.ts";
 
 export const STATUSLINE_WIDGET_KEY = "pi-plus-plus-statusline";
 
 type StatuslineContext = ExtensionContext;
+type EditorTUI = ConstructorParameters<typeof CustomEditor>[0];
+type EditorTheme = ConstructorParameters<typeof CustomEditor>[1];
 
 export interface StatuslineExtensionAPI {
 	getThinkingLevel?: () => string;
@@ -108,7 +109,7 @@ export class MetadataEditor extends CustomEditor {
 	private readonly mutedBorderColor: (text: string) => string;
 
 	constructor(
-		tui: TUI,
+		tui: EditorTUI,
 		theme: EditorTheme,
 		keybindings: KeybindingsManager,
 		context: ExtensionContext,

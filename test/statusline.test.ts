@@ -10,7 +10,6 @@ import type {
 	Theme,
 	ThemeColor,
 } from "@earendil-works/pi-coding-agent";
-import type { EditorTheme, TUI } from "@earendil-works/pi-tui";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import {
 	aggregateUsage,
@@ -186,8 +185,10 @@ function actualEditor(
 	level: string,
 	mode: "full" | "ask" = "full",
 ): MetadataEditor {
+	type EditorTUI = ConstructorParameters<typeof MetadataEditor>[0];
+	type EditorTheme = ConstructorParameters<typeof MetadataEditor>[1];
 	const editor = new MetadataEditor(
-		{ terminal: { rows: 20 } } as TUI,
+		{ terminal: { rows: 20 } } as EditorTUI,
 		{} as EditorTheme,
 		{ matches: () => false } as never as KeybindingsManager,
 		ctx,
