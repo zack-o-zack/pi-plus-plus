@@ -17,9 +17,10 @@ export const STATUSLINE_WIDGET_KEY = "pi-plus-plus-statusline";
 type StatuslineContext = ExtensionContext;
 type EditorTUI = ConstructorParameters<typeof CustomEditor>[0];
 type EditorTheme = ConstructorParameters<typeof CustomEditor>[1];
+type ThinkingLevel = Parameters<Theme["getThinkingBorderColor"]>[0];
 
 export interface StatuslineExtensionAPI {
-	getThinkingLevel?: () => string;
+	getThinkingLevel?: () => ThinkingLevel;
 	on(
 		event: "session_start",
 		handler: (
@@ -31,29 +32,11 @@ export interface StatuslineExtensionAPI {
 
 type AccessModeGetter = () => AccessMode;
 
-function effortColor(level: string): ThemeColor | undefined {
-	switch (level) {
-		case "minimal":
-			return "muted";
-		case "low":
-			return "accent";
-		case "medium":
-			return "success";
-		case "high":
-		case "xhigh":
-			return "warning";
-		case "max":
-			return "error";
-		default:
-			return undefined;
-	}
-}
-
 export function renderEditorBottomBorder(
 	width: number,
 	ctx: Pick<ExtensionContext, "model" | "ui">,
 	getAccessMode: AccessModeGetter,
-	getThinkingLevel: () => string,
+	getThinkingLevel: () => ThinkingLevel | undefined,
 	border: (text: string) => string,
 ): string {
 	if (width <= 0) return "";
@@ -67,8 +50,10 @@ export function renderEditorBottomBorder(
 	const modelName = model?.name || model?.id;
 	const provider = model?.provider;
 	const thinkingLevel = getThinkingLevel();
-	const color = model?.reasoning ? effortColor(thinkingLevel) : undefined;
-	const thinking = color ? ctx.ui.theme.fg(color, thinkingLevel) : undefined;
+	const thinking =
+		model?.reasoning && thinkingLevel && thinkingLevel !== "off"
+			? ctx.ui.theme.getThinkingBorderColor(thinkingLevel)(thinkingLevel)
+			: undefined;
 	const modelSegment = modelName
 		? `${ctx.ui.theme.fg("text", modelName)}${provider ? muted(` ${provider}`) : ""}`
 		: undefined;
@@ -96,17 +81,11 @@ export function renderEditorBottomBorder(
 	}
 	return border("─".repeat(width));
 }
-
-function isEditorBottomBorder(line: string): boolean {
-	const plain = stripVTControlCharacters(line);
-	return /^─+$/.test(plain) || plain.startsWith("─── ↓");
-}
-
 export class MetadataEditor extends CustomEditor {
 	private readonly context: ExtensionContext;
 	private readonly getAccessMode: AccessModeGetter;
-	private readonly getThinkingLevel: () => string;
-	private readonly mutedBorderColor: (text: string) => string;
+	private readonly getThinkingLevel: () => ThinkingLevel | undefined;
+	private readonly neutralBorderColor: (text: string) => string;
 
 	constructor(
 		tui: EditorTUI,
@@ -114,47 +93,47 @@ export class MetadataEditor extends CustomEditor {
 		keybindings: KeybindingsManager,
 		context: ExtensionContext,
 		getAccessMode: AccessModeGetter,
-		getThinkingLevel: () => string,
+		getThinkingLevel: () => ThinkingLevel | undefined,
 	) {
-		const mutedBorderColor = (text: string) =>
-			context.ui.theme.fg("muted", text);
-		super(
-			tui,
-			{
-				...theme,
-				borderColor: mutedBorderColor,
-			},
-			keybindings,
-			{ paddingX: 0 },
-		);
+		super(tui, theme, keybindings);
 		this.context = context;
 		this.getAccessMode = getAccessMode;
 		this.getThinkingLevel = getThinkingLevel;
-		this.mutedBorderColor = mutedBorderColor;
+		this.neutralBorderColor = theme.borderColor;
 	}
 
 	render(width: number): string[] {
-		this.borderColor = this.mutedBorderColor;
 		const lines = super.render(width);
-		if (
-			lines[0] !== undefined &&
-			stripVTControlCharacters(lines[0]).startsWith("─── ↑")
-		)
-			return lines;
-		for (let index = lines.length - 1; index >= 0; index -= 1) {
-			if (!isEditorBottomBorder(lines[index])) continue;
-			const plain = stripVTControlCharacters(lines[index]);
-			if (plain.startsWith("─── ↑") || plain.startsWith("─── ↓")) return lines;
-			lines[index] = renderEditorBottomBorder(
-				width,
-				this.context,
-				this.getAccessMode,
-				this.getThinkingLevel,
-				this.borderColor,
-			);
-			break;
+		if (width <= 0) return lines;
+		const border = "─".repeat(width);
+		if (stripVTControlCharacters(lines[0] ?? "") !== border) return lines;
+		if (stripVTControlCharacters(lines.at(-1) ?? "") !== border) return lines;
+
+		const useBashBorder = this.getText().trimStart().startsWith("!");
+		const borderColor = useBashBorder
+			? this.context.ui.theme.getBashModeBorderColor()
+			: this.neutralBorderColor;
+		const rendered = [...lines];
+		const bottomIndex = rendered.length - 1;
+		if (!useBashBorder)
+			rendered[0] = this.neutralBorderColor("─").repeat(width);
+		else {
+			const reset = "\x1b[0m";
+			for (let index = 1; index < bottomIndex; index += 1) {
+				rendered[index] = rendered[index]
+					.split(reset)
+					.map((segment) => (segment ? borderColor(segment) : segment))
+					.join(reset);
+			}
 		}
-		return lines;
+		rendered[bottomIndex] = renderEditorBottomBorder(
+			width,
+			this.context,
+			this.getAccessMode,
+			this.getThinkingLevel,
+			borderColor,
+		);
+		return rendered;
 	}
 }
 
@@ -344,13 +323,8 @@ export function registerStatusline(
 		);
 		ctx.ui.setEditorComponent(
 			(tui, theme, keybindings) =>
-				new MetadataEditor(
-					tui,
-					theme,
-					keybindings,
-					ctx,
-					getAccessMode,
-					() => pi.getThinkingLevel?.() ?? "none",
+				new MetadataEditor(tui, theme, keybindings, ctx, getAccessMode, () =>
+					pi.getThinkingLevel?.(),
 				),
 		);
 	});

@@ -10,6 +10,7 @@ import type {
 	Theme,
 	ThemeColor,
 } from "@earendil-works/pi-coding-agent";
+import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import {
 	aggregateUsage,
@@ -113,11 +114,23 @@ function widget(
 	return new DefaultStatuslineWidget(ctx, footerData([], branch), theme);
 }
 
-function themed(calls: Array<[ThemeColor, string]>): Pick<Theme, "fg"> {
+function themed(
+	calls: Array<[ThemeColor, string]>,
+	thinkingCalls: string[] = [],
+	bashCalls: string[] = [],
+): Pick<Theme, "fg" | "getThinkingBorderColor" | "getBashModeBorderColor"> {
 	return {
 		fg: (color, text) => {
 			calls.push([color, text]);
 			return `\u001b[38;5;${calls.length}m${text}\u001b[0m`;
+		},
+		getThinkingBorderColor: (level) => (text) => {
+			thinkingCalls.push(`${level}:${text}`);
+			return `\u001b[38;5;240m${text}\u001b[0m`;
+		},
+		getBashModeBorderColor: () => (text) => {
+			bashCalls.push(text);
+			return `\u001b[38;5;201m${text}\u001b[0m`;
 		},
 	};
 }
@@ -174,22 +187,30 @@ test("session_start installs footer before the widget and repeats registration",
 function editorMetadataContext(
 	model: ExtensionContext["model"],
 	calls: Array<[ThemeColor, string]>,
+	thinkingCalls: string[] = [],
+	bashCalls: string[] = [],
 ): ExtensionContext {
 	const ctx = context({ model });
-	(ctx.ui as typeof ctx.ui & { theme: Theme }).theme = themed(calls) as Theme;
+	(ctx.ui as typeof ctx.ui & { theme: Theme }).theme = themed(
+		calls,
+		thinkingCalls,
+		bashCalls,
+	) as Theme;
 	return ctx;
 }
 
 function actualEditor(
 	ctx: ExtensionContext,
-	level: string,
+	level: Parameters<Theme["getThinkingBorderColor"]>[0] | undefined,
 	mode: "full" | "ask" = "full",
 ): MetadataEditor {
 	type EditorTUI = ConstructorParameters<typeof MetadataEditor>[0];
 	type EditorTheme = ConstructorParameters<typeof MetadataEditor>[1];
 	const editor = new MetadataEditor(
 		{ terminal: { rows: 20 } } as EditorTUI,
-		{} as EditorTheme,
+		{
+			borderColor: (text) => ctx.ui.theme.fg("borderMuted", text),
+		} as EditorTheme,
 		{ matches: () => false } as never as KeybindingsManager,
 		ctx,
 		() => mode,
@@ -199,61 +220,75 @@ function actualEditor(
 	return editor;
 }
 
-test("actual editor keeps native height and uses a fixed muted border", () => {
-	const expectedColors = new Map([
-		["minimal", "muted"],
-		["low", "accent"],
-		["medium", "success"],
-		["high", "warning"],
-		["xhigh", "warning"],
-		["max", "error"],
-	]);
-	for (const [level, color] of expectedColors) {
-		const calls: Array<[ThemeColor, string]> = [];
-		const editor = actualEditor(
-			editorMetadataContext(
-				{
-					name: "Claude 3.5 Sonnet",
-					provider: "anthropic",
-					id: "claude",
-					reasoning: true,
-					contextWindow: 1000,
-				} as ExtensionContext["model"],
-				calls,
-			),
-			level,
-		);
-		const lines = editor.render(100);
-		assert.equal(lines.length, 3);
-		assert.equal(
-			stripVTControlCharacters(lines.at(-1) ?? "").endsWith(
-				` Full • Claude 3.5 Sonnet anthropic • ${level} ───`,
-			),
-			true,
-		);
-		assert.ok(lines.every((line) => visibleWidth(line) <= 100));
+function nativeEditor(
+	editor: MetadataEditor,
+	borderColor: (text: string) => string,
+): CustomEditor {
+	type EditorTUI = ConstructorParameters<typeof MetadataEditor>[0];
+	type EditorTheme = ConstructorParameters<typeof MetadataEditor>[1];
+	const native = new CustomEditor(
+		{ terminal: { rows: 20 } } as EditorTUI,
+		{ borderColor } as EditorTheme,
+		{ matches: () => false } as never as KeybindingsManager,
+	);
+	native.focused = editor.focused;
+	native.setText(editor.getText());
+	return native;
+}
+
+test("actual editor delegates to native rendering before applying neutral metadata", () => {
+	const calls: Array<[ThemeColor, string]> = [];
+	const thinkingCalls: string[] = [];
+	const editor = actualEditor(
+		editorMetadataContext(
+			{
+				name: "Claude 3.5 Sonnet",
+				provider: "anthropic",
+				id: "claude",
+				reasoning: true,
+				contextWindow: 1000,
+			} as ExtensionContext["model"],
+			calls,
+			thinkingCalls,
+		),
+		"high",
+	);
+	const hostCalls: string[] = [];
+	const hostBorder = (text: string) => {
+		hostCalls.push(text);
+		return `\u001b[31m${text}\u001b[0m`;
+	};
+	editor.borderColor = hostBorder;
+	const native = nativeEditor(editor, hostBorder).render(100);
+	hostCalls.length = 0;
+	const lines = editor.render(100);
+	assert.equal(editor.borderColor, hostBorder);
+	assert.ok(hostCalls.includes("─"));
+	assert.equal(lines.length, native.length);
+	assert.deepEqual(lines.slice(1, -1), native.slice(1, -1));
+	assert.equal(stripVTControlCharacters(lines[0]), "─".repeat(100));
+	assert.ok(!lines[0].includes("\u001b[31m"));
+	assert.equal(
+		stripVTControlCharacters(lines.at(-1) ?? "").endsWith(
+			" Full • Claude 3.5 Sonnet anthropic • high ───",
+		),
+		true,
+	);
+	assert.ok(lines.every((line) => visibleWidth(line) <= 100));
+	assert.deepEqual(thinkingCalls, ["high:high"]);
+	assert.ok(
+		calls.some(([actual, value]) => actual === "accent" && value === "Full"),
+	);
+	assert.ok(
+		calls.some(
+			([actual, value]) => actual === "text" && value === "Claude 3.5 Sonnet",
+		),
+	);
+	for (const text of [" anthropic", " • "])
 		assert.ok(
-			calls
-				.filter(([, text]) => /^─+$/.test(text))
-				.every(([actual]) => actual === "muted"),
+			calls.some(([actual, value]) => actual === "muted" && value === text),
 		);
-		assert.deepEqual(
-			calls.filter(([, text]) => text === level).map(([actual]) => actual),
-			[color],
-		);
-		assert.ok(
-			calls.some(([actual, value]) => actual === "accent" && value === "Full"),
-		);
-		assert.ok(
-			calls.some(
-				([actual, value]) => actual === "text" && value === "Claude 3.5 Sonnet",
-			),
-		);
-		for (const text of [" anthropic", " • "])
-			assert.ok(
-				calls.some(([actual, value]) => actual === "muted" && value === text),
-			);
-	}
+
 	const askCalls: Array<[ThemeColor, string]> = [];
 	const askEditor = actualEditor(
 		editorMetadataContext(
@@ -285,11 +320,11 @@ test("actual editor keeps native height and uses a fixed muted border", () => {
 	assert.ok(
 		askCalls
 			.filter(([, text]) => /^─+$/.test(text))
-			.every(([actual]) => actual === "muted"),
+			.every(([actual]) => actual === "borderMuted"),
 	);
 });
 
-test("actual editor restores muted borders after host border overwrites", () => {
+test("actual editor retains the host border identity during normal render", () => {
 	const calls: Array<[ThemeColor, string]> = [];
 	const editor = actualEditor(
 		editorMetadataContext(
@@ -306,23 +341,137 @@ test("actual editor restores muted borders after host border overwrites", () => 
 	);
 	for (const fakeColor of ["thinkingMax", "error"] as const) {
 		const fakeBorderCalls: string[] = [];
-		editor.borderColor = (text) => {
+		const hostBorder = (text: string) => {
 			fakeBorderCalls.push(text);
 			return `${fakeColor}:${text}`;
 		};
+		editor.borderColor = hostBorder;
 		const start = calls.length;
 		editor.render(100);
 		const renderCalls = calls.slice(start);
-		assert.deepEqual(fakeBorderCalls, []);
+		assert.ok(fakeBorderCalls.includes("─"));
+		assert.equal(editor.borderColor, hostBorder);
 		assert.ok(
 			renderCalls
 				.filter(([, text]) => /^─+$/.test(text))
-				.every(([color]) => color === "muted"),
+				.every(([color]) => color === "borderMuted"),
 		);
-		assert.deepEqual(
-			renderCalls.filter(([, text]) => text === "max").map(([color]) => color),
-			["error"],
-		);
+	}
+});
+
+test("colors focused bash input around cursor resets without changing native width", () => {
+	const bashCalls: string[] = [];
+	const editor = actualEditor(
+		editorMetadataContext(context().model, [], [], bashCalls),
+		"max",
+	);
+	const nativeBorder = (text: string) => `\u001b[38;5;45m${text}\u001b[0m`;
+	editor.borderColor = nativeBorder;
+	editor.setText("!echo Pi");
+	editor.handleInput("\u001b[D");
+	editor.handleInput("\u001b[D");
+	const native = nativeEditor(editor, nativeBorder);
+	native.handleInput("\u001b[D");
+	native.handleInput("\u001b[D");
+	const nativeLines = native.render(20);
+	const lines = editor.render(20);
+	assert.equal(editor.getText(), "!echo Pi");
+	assert.equal(lines[0], nativeLines[0]);
+	assert.ok(lines[1].includes("\u001b[7m"));
+	assert.ok(lines[1].includes("\u001b[0m"));
+	assert.ok(lines[1].includes("\u001b[38;5;201m!echo"));
+	assert.ok(lines[1].includes("\u001b[38;5;201mi"));
+	assert.equal(
+		stripVTControlCharacters(lines[1]),
+		stripVTControlCharacters(nativeLines[1]),
+	);
+	assert.equal(visibleWidth(lines[1]), visibleWidth(nativeLines[1]));
+	assert.ok(bashCalls.includes("─".repeat(3)));
+	assert.equal(editor.borderColor, nativeBorder);
+});
+
+test("colors unfocused, trimmed, multiline, and wrapped bash input", () => {
+	const bashCalls: string[] = [];
+	const editor = actualEditor(
+		editorMetadataContext(context().model, [], [], bashCalls),
+		"high",
+	);
+	editor.focused = false;
+	editor.setText("  !first command\nsecond command that wraps");
+	const lines = editor.render(12);
+	assert.ok(
+		lines.slice(1, -1).every((line) => line.startsWith("\u001b[38;5;201m")),
+	);
+	assert.ok(lines.at(-1)?.startsWith("\u001b[38;5;201m"));
+	assert.ok(bashCalls.some((text) => text.includes("first")));
+	assert.ok(bashCalls.some((text) => text.includes("second")));
+});
+
+test("returns native output unchanged for unrecognized, scroll, and autocomplete shapes", () => {
+	const editor = actualEditor(
+		editorMetadataContext(context().model, []),
+		"high",
+	);
+	const nativeRender = CustomEditor.prototype.render;
+	const border = "─".repeat(20);
+	try {
+		CustomEditor.prototype.render = () => [border, "input", `future:${border}`];
+		assert.deepEqual(editor.render(20), [border, "input", `future:${border}`]);
+		CustomEditor.prototype.render = () => [
+			border,
+			"input",
+			border,
+			"autocomplete",
+		];
+		assert.deepEqual(editor.render(20), [
+			border,
+			"input",
+			border,
+			"autocomplete",
+		]);
+		CustomEditor.prototype.render = () => [
+			"─── ↑ 1 more ───────",
+			"input",
+			border,
+		];
+		assert.deepEqual(editor.render(20), [
+			"─── ↑ 1 more ───────",
+			"input",
+			border,
+		]);
+	} finally {
+		CustomEditor.prototype.render = nativeRender;
+	}
+});
+
+test("returns native output unchanged for non-positive widths", () => {
+	const editor = actualEditor(
+		editorMetadataContext(context().model, []),
+		"high",
+	);
+	const nativeRender = CustomEditor.prototype.render;
+	try {
+		CustomEditor.prototype.render = () => [""];
+		assert.deepEqual(editor.render(-1), [""]);
+	} finally {
+		CustomEditor.prototype.render = nativeRender;
+	}
+});
+
+test("only treats the final full-width dash row as the lower border", () => {
+	const editor = actualEditor(
+		editorMetadataContext(context().model, []),
+		"high",
+	);
+	const nativeRender = CustomEditor.prototype.render;
+	const border = "─".repeat(20);
+	try {
+		CustomEditor.prototype.render = () => [border, border, border];
+		const lines = editor.render(20);
+		assert.equal(lines[1], border);
+		assert.notEqual(lines[2], border);
+	} finally {
+		CustomEditor.prototype.render = nativeRender;
 	}
 });
 
@@ -347,8 +496,9 @@ test("actual editor preserves both scroll indicators without metadata or blank r
 	);
 });
 
-test("renders live access, model, provider, and thinking metadata", () => {
+test("renders live access, model, provider, and dynamic thinking metadata", () => {
 	const calls: Array<[ThemeColor, string]> = [];
+	const thinkingCalls: string[] = [];
 	const ctx = editorMetadataContext(
 		{
 			name: "Claude 3.5 Sonnet",
@@ -359,6 +509,10 @@ test("renders live access, model, provider, and thinking metadata", () => {
 		} as ExtensionContext["model"],
 		calls,
 	);
+	(ctx.ui as typeof ctx.ui & { theme: Theme }).theme = themed(
+		calls,
+		thinkingCalls,
+	) as Theme;
 	let mode: "full" | "ask" = "full";
 	const rendered = renderEditorBottomBorder(
 		100,
@@ -382,9 +536,8 @@ test("renders live access, model, provider, and thinking metadata", () => {
 	assert.ok(
 		calls.some(([color, text]) => color === "muted" && text === " anthropic"),
 	);
-	assert.ok(
-		calls.some(([color, text]) => color === "warning" && text === "high"),
-	);
+	assert.deepEqual(thinkingCalls, ["high:high"]);
+	assert.ok(rendered.includes("\u001b[38;5;240mhigh"));
 	mode = "ask";
 	assert.ok(
 		stripVTControlCharacters(
@@ -399,51 +552,37 @@ test("renders live access, model, provider, and thinking metadata", () => {
 	);
 });
 
-test("maps every supported thinking level and omits unsupported thinking", () => {
-	for (const [level, color] of [
-		["minimal", "muted"],
-		["low", "accent"],
-		["medium", "success"],
-		["high", "warning"],
-		["xhigh", "warning"],
-		["max", "error"],
-	] as const) {
-		const calls: Array<[ThemeColor, string]> = [];
-		const ctx = editorMetadataContext(context().model, calls);
-		renderEditorBottomBorder(
-			100,
-			ctx,
-			() => "full",
-			() => level,
-			(text) => text,
-		);
-		assert.equal(
-			calls.filter(([actual, text]) => actual === color && text === level)
-				.length,
-			1,
-		);
-		assert.ok(
-			!calls.some(([actual]) =>
-				["thinkingHigh", "thinkingXhigh", "thinkingMax"].includes(actual),
-			),
-		);
-		assert.deepEqual(
-			calls.filter(([actual]) => actual === "error"),
-			level === "max" ? [["error", "max"]] : [],
-		);
-	}
+test("uses Pi thinking colors and omits unavailable thinking", () => {
+	const calls: Array<[ThemeColor, string]> = [];
+	const thinkingCalls: string[] = [];
+	const ctx = editorMetadataContext(context().model, calls);
+	(ctx.ui as typeof ctx.ui & { theme: Theme }).theme = themed(
+		calls,
+		thinkingCalls,
+	) as Theme;
+	renderEditorBottomBorder(
+		100,
+		ctx,
+		() => "full",
+		() => "high",
+		(text) => text,
+	);
+	assert.deepEqual(thinkingCalls, ["high:high"]);
 	for (const [reasoning, level] of [
 		[true, "off"],
-		[true, "none"],
-		[true, "unsupported"],
-		[true, ""],
+		[true, undefined],
 		[false, "high"],
 	] as const) {
 		const calls: Array<[ThemeColor, string]> = [];
+		const thinkingCalls: string[] = [];
 		const ctx = editorMetadataContext(
 			{ ...context().model, reasoning } as ExtensionContext["model"],
 			calls,
 		);
+		(ctx.ui as typeof ctx.ui & { theme: Theme }).theme = themed(
+			calls,
+			thinkingCalls,
+		) as Theme;
 		const plain = stripVTControlCharacters(
 			renderEditorBottomBorder(
 				100,
@@ -454,9 +593,7 @@ test("maps every supported thinking level and omits unsupported thinking", () =>
 			),
 		);
 		if (level) assert.ok(!plain.includes(level));
-		assert.ok(
-			!calls.some(([color]) => color === "warning" || color === "error"),
-		);
+		assert.deepEqual(thinkingCalls, []);
 	}
 });
 
