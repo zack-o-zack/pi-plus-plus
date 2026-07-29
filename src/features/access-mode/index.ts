@@ -4,7 +4,6 @@ import type {
 	ExtensionUIContext,
 	SessionShutdownEvent,
 	SessionStartEvent,
-	Theme,
 } from "@earendil-works/pi-coding-agent";
 
 export const ACCESS_MODES = ["full", "ask"] as const;
@@ -17,10 +16,8 @@ const ACCESS_MODE_OPTIONS = [
 ] satisfies ReadonlyArray<{ label: string; mode: AccessMode }>;
 
 export interface AccessModeUIContext {
-	theme: Pick<Theme, "fg">;
 	select: ExtensionUIContext["select"];
 	notify: ExtensionUIContext["notify"];
-	setStatus: ExtensionUIContext["setStatus"];
 }
 
 export interface AccessModeContext {
@@ -71,7 +68,9 @@ function modeForOption(label: string): AccessMode | undefined {
 }
 
 /** Registers the access-mode flag, command, and session lifecycle handlers. */
-export function registerAccessMode(pi: AccessModeExtensionAPI): void {
+export function registerAccessMode(
+	pi: AccessModeExtensionAPI,
+): () => AccessMode {
 	pi.registerFlag("access-mode", {
 		description: "Initial access mode",
 		type: "string",
@@ -80,13 +79,6 @@ export function registerAccessMode(pi: AccessModeExtensionAPI): void {
 
 	let mode: AccessMode = "full";
 	let toolsBeforeAsk: string[] | undefined;
-
-	function updateStatus(ctx: AccessModeContext): void {
-		ctx.ui.setStatus(
-			"access-mode",
-			mode === "full" ? undefined : ctx.ui.theme.fg("warning", "Ask"),
-		);
-	}
 
 	function enforceReadOnlyTools(): void {
 		const activeTools = pi.getActiveTools();
@@ -97,10 +89,9 @@ export function registerAccessMode(pi: AccessModeExtensionAPI): void {
 			pi.setActiveTools(filteredTools);
 	}
 
-	function applyMode(nextMode: AccessMode, ctx: AccessModeContext): void {
+	function applyMode(nextMode: AccessMode): void {
 		if (nextMode === mode) {
 			if (mode === "ask") enforceReadOnlyTools();
-			updateStatus(ctx);
 			return;
 		}
 
@@ -113,7 +104,6 @@ export function registerAccessMode(pi: AccessModeExtensionAPI): void {
 		}
 
 		mode = nextMode;
-		updateStatus(ctx);
 	}
 
 	async function selectMode(ctx: AccessModeContext): Promise<void> {
@@ -124,7 +114,7 @@ export function registerAccessMode(pi: AccessModeExtensionAPI): void {
 		if (!selected) return;
 		const selectedMode = modeForOption(selected);
 		if (!selectedMode) return;
-		applyMode(selectedMode, ctx);
+		applyMode(selectedMode);
 		ctx.ui.notify(`Access mode: ${selectedMode}`, "info");
 	}
 
@@ -141,7 +131,7 @@ export function registerAccessMode(pi: AccessModeExtensionAPI): void {
 				"warning",
 			);
 		}
-		applyMode(resolved.mode, ctx);
+		applyMode(resolved.mode);
 	});
 
 	pi.on("before_agent_start", async () => {
@@ -152,4 +142,6 @@ export function registerAccessMode(pi: AccessModeExtensionAPI): void {
 		if (mode === "ask" && toolsBeforeAsk !== undefined)
 			pi.setActiveTools(toolsBeforeAsk);
 	});
+
+	return () => mode;
 }

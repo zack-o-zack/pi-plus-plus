@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type {
-	SessionStartEvent,
-	ThemeColor,
-} from "@earendil-works/pi-coding-agent";
+import type { SessionStartEvent } from "@earendil-works/pi-coding-agent";
 import {
 	type AccessModeCommand,
 	type AccessModeContext,
@@ -14,6 +11,7 @@ import {
 } from "../src/features/access-mode/index.ts";
 
 interface AccessModeHarness {
+	getAccessMode: () => "full" | "ask";
 	flag: string | undefined;
 	selectedOption: string | undefined;
 	activeTools: string[];
@@ -32,6 +30,7 @@ function createHarness(
 	activeTools = ["read", "bash", "edit", "write", "grep", "custom"],
 ): AccessModeHarness {
 	const harness: AccessModeHarness = {
+		getAccessMode: () => "full",
 		flag,
 		selectedOption: "Full (Default) - Work on files and run commands",
 		activeTools,
@@ -68,15 +67,12 @@ function createHarness(
 				harness.beforeAgentStarts.push(handler);
 		},
 	} satisfies AccessModeExtensionAPI;
-	registerAccessMode(api);
+	harness.getAccessMode = registerAccessMode(api);
 	return harness;
 }
 
 function context(harness: AccessModeHarness): AccessModeContext {
 	const ui = {
-		theme: {
-			fg: (color: ThemeColor, text: string) => `<${color}>${text}</${color}>`,
-		},
 		select: async (_title: string, options: string[]) => {
 			harness.selectOptions = options;
 			return harness.selectedOption;
@@ -87,7 +83,9 @@ function context(harness: AccessModeHarness): AccessModeContext {
 		setStatus: (key: string, text: string | undefined) => {
 			harness.statusCalls.push([key, text]);
 		},
-	} satisfies AccessModeUIContext;
+	} as AccessModeUIContext & {
+		setStatus: (key: string, text: string | undefined) => void;
+	};
 	return { ui } satisfies AccessModeContext;
 }
 
@@ -129,9 +127,8 @@ test("ask hides only active mutation tools and full restores the snapshot", asyn
 
 	assert.deepEqual(harness.activeTools, ["read", "grep", "custom"]);
 	assert.deepEqual(harness.setActiveToolsCalls, [["read", "grep", "custom"]]);
-	assert.deepEqual(harness.statusCalls, [
-		["access-mode", "<warning>Ask</warning>"],
-	]);
+	assert.deepEqual(harness.statusCalls, []);
+	assert.equal(harness.getAccessMode(), "ask");
 
 	assert.ok(harness.command);
 	await harness.command.handler("", context(harness));
@@ -147,7 +144,8 @@ test("ask hides only active mutation tools and full restores the snapshot", asyn
 		"grep",
 		"custom",
 	]);
-	assert.deepEqual(harness.statusCalls.at(-1), ["access-mode", undefined]);
+	assert.equal(harness.getAccessMode(), "full");
+	assert.deepEqual(harness.statusCalls, []);
 });
 
 test("full-to-ask and repeated transitions preserve the active selection", async () => {
@@ -276,7 +274,6 @@ test("cancelling access-mode selection leaves the current state unchanged", asyn
 	await startSession(harness);
 	const stateBeforeSelection = {
 		activeTools: [...harness.activeTools],
-		statusCalls: [...harness.statusCalls],
 		notifications: [...harness.notifications],
 	};
 	harness.selectedOption = undefined;
@@ -285,7 +282,6 @@ test("cancelling access-mode selection leaves the current state unchanged", asyn
 	await harness.command.handler("", context(harness));
 
 	assert.deepEqual(harness.activeTools, stateBeforeSelection.activeTools);
-	assert.deepEqual(harness.statusCalls, stateBeforeSelection.statusCalls);
 	assert.deepEqual(harness.notifications, stateBeforeSelection.notifications);
 });
 
@@ -294,7 +290,6 @@ test("an unrecognized access-mode selection leaves the current state unchanged",
 	await startSession(harness);
 	const stateBeforeSelection = {
 		activeTools: [...harness.activeTools],
-		statusCalls: [...harness.statusCalls],
 		notifications: [...harness.notifications],
 	};
 	harness.selectedOption = "future-mode";
@@ -303,6 +298,5 @@ test("an unrecognized access-mode selection leaves the current state unchanged",
 	await harness.command.handler("", context(harness));
 
 	assert.deepEqual(harness.activeTools, stateBeforeSelection.activeTools);
-	assert.deepEqual(harness.statusCalls, stateBeforeSelection.statusCalls);
 	assert.deepEqual(harness.notifications, stateBeforeSelection.notifications);
 });
