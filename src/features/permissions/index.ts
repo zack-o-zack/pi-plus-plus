@@ -39,7 +39,15 @@ export {
 	loadPermissionPolicy,
 } from "../../core/permissions/index.ts";
 
-function loadPolicy(cwd: string, projectTrusted: boolean): PermissionPolicy {
+export type PermissionPolicySource = (
+	cwd: string,
+	projectTrusted: boolean,
+) => PermissionPolicy;
+
+export const loadPermissionPolicyFromSettings: PermissionPolicySource = (
+	cwd,
+	projectTrusted,
+) => {
 	const settings = SettingsManager.create(cwd, undefined, { projectTrusted });
 	const errors = settings
 		.drainErrors()
@@ -57,7 +65,7 @@ function loadPolicy(cwd: string, projectTrusted: boolean): PermissionPolicy {
 			: undefined,
 		errors,
 	);
-}
+};
 
 function renderBlockReason(
 	decision: Exclude<PermissionDecision, { action: "allow" }>,
@@ -103,7 +111,10 @@ async function rejectPermission(
 }
 
 /** Registers session policy loading and tool-call permission enforcement. */
-export function registerPermissionHook(pi: Pick<ExtensionAPI, "on">): void {
+export function registerPermissionHook(
+	pi: Pick<ExtensionAPI, "on">,
+	loadPolicy: PermissionPolicySource,
+): void {
 	if (typeof pi.on !== "function") return;
 	const cache = createPermissionPolicyCache();
 	const sessionGrants = new Set<string>();

@@ -1,41 +1,183 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
-import {
-	type ExtensionAPI,
-	SettingsManager,
-	type ToolCallEvent,
+import type {
+	ExtensionAPI,
+	ExtensionHandler,
+	SessionStartEvent,
+	ToolCallEvent,
+	ToolCallEventResult,
 } from "@earendil-works/pi-coding-agent";
 import {
 	evaluatePermission,
 	loadPermissionPolicy,
 	type PermissionPolicy,
+	type PermissionPolicySource,
 	type PermissionSettings,
 	registerPermissionHook,
 } from "../src/features/permissions/index.ts";
+import { interpretPermissionCall } from "../src/core/permissions/interpret.ts";
 import extension from "../src/index.ts";
 
 const cwd = "/workspace/project";
 
+function validPolicy(settings: PermissionSettings): PermissionPolicy {
+	return { settings, configuration: { status: "valid" } };
+}
+
+class TestPermissionPolicySource {
+	readonly calls: Array<{ cwd: string; projectTrusted: boolean }> = [];
+	private readonly policies: PermissionPolicy[];
+
+	constructor(policies: PermissionPolicy[]) {
+		this.policies = policies;
+	}
+
+	readonly load: PermissionPolicySource = (cwd, projectTrusted) => {
+		this.calls.push({ cwd, projectTrusted });
+		const policy = this.policies.shift();
+		assert.ok(policy, "expected a loaded permission policy");
+		return policy;
+	};
+}
+
+type SessionStartHandler = ExtensionHandler<SessionStartEvent>;
+type ToolCallHandler = ExtensionHandler<ToolCallEvent, ToolCallEventResult>;
+type PermissionHookHandler = SessionStartHandler | ToolCallHandler;
+
 function mockExtensionAPI(
 	on: (
-		event: string,
-		handler: (event: unknown, context: never) => unknown,
+		event: "session_start" | "tool_call",
+		handler: PermissionHookHandler,
 	) => void,
 	registerTool: () => void = () => {},
 ): Pick<ExtensionAPI, "on" | "registerTool"> {
 	return { on: on as ExtensionAPI["on"], registerTool };
 }
 
+test("loads permissions from the injected policy source", async () => {
+	let sessionStart: SessionStartHandler | undefined;
+	let toolCall: ToolCallHandler | undefined;
+	const source = new TestPermissionPolicySource([
+		validPolicy({ write: { "secret.txt": "deny" } }),
+	]);
+	registerPermissionHook(
+		mockExtensionAPI((event, handler) => {
+			if (event === "session_start")
+				sessionStart = handler as SessionStartHandler;
+			if (event === "tool_call") toolCall = handler as ToolCallHandler;
+		}),
+		source.load,
+	);
+	assert.ok(sessionStart);
+	assert.ok(toolCall);
+	await sessionStart({ type: "session_start", reason: "startup" }, {
+		cwd,
+		isProjectTrusted: () => true,
+		ui: { notify(): void {} },
+	} as never);
+	assert.deepEqual(
+		await toolCall(
+			{
+				type: "tool_call",
+				toolCallId: "injected-source",
+				toolName: "write",
+				input: { path: "secret.txt", content: "x" },
+			},
+			{ cwd, mode: "print" } as never,
+		),
+		{
+			block: true,
+			reason:
+				"Permission policy denied write for target secret.txt by rule secret.txt; do not seek alternate tools, paths, or commands to bypass this restriction.",
+		},
+	);
+	assert.deepEqual(source.calls, [{ cwd, projectTrusted: true }]);
+});
+
+test("fails closed for an invalid loaded policy during direct evaluation", () => {
+	assert.deepEqual(
+		evaluatePermission(
+			{
+				settings: {},
+				configuration: {
+					status: "invalid",
+					reason: "ppp.permission.write must be an object",
+				},
+			},
+			{ toolName: "write", input: { path: "secret.txt" } },
+			cwd,
+		),
+		{
+			action: "invalid-configuration",
+			reason: "ppp.permission.write must be an object",
+		},
+	);
+});
+
+test("interprets Bash command segments and ambiguous shell syntax", () => {
+	assert.deepEqual(
+		interpretPermissionCall(
+			{
+				toolName: "bash",
+				input: { command: "echo ready && git push origin main" },
+			},
+			cwd,
+		),
+		{
+			key: "bash",
+			actionContext:
+				"Allow bash command?\n$ echo ready && git push origin main",
+			bash: {
+				command: "echo ready && git push origin main",
+				segments: ["echo ready", "git push origin main"],
+				ambiguous: false,
+			},
+		},
+	);
+	assert.deepEqual(
+		interpretPermissionCall(
+			{ toolName: "bash", input: { command: "echo $(git push origin main)" } },
+			cwd,
+		).bash,
+		{ command: "echo $(git push origin main)", segments: [], ambiguous: true },
+	);
+});
+
+test("normalizes exploration paths and effective search targets", () => {
+	assert.deepEqual(
+		interpretPermissionCall(
+			{
+				toolName: "grep",
+				input: { pattern: "TODO", path: "private", glob: "**/*.ts" },
+			},
+			cwd,
+		),
+		{
+			key: "read",
+			actionContext:
+				"Allow grep search?\nPattern: TODO\nPath: private\nGlob: **/*.ts",
+			targets: ["private", "private/**/*.ts"],
+		},
+	);
+	assert.deepEqual(
+		interpretPermissionCall(
+			{
+				toolName: "find",
+				input: { path: "/external", pattern: "src/*.ts" },
+			},
+			cwd,
+		).targets,
+		["/external", "/external/**/src/*.ts"],
+	);
+});
+
 test("evaluates ordered edit rules against normalized paths", () => {
-	const settings: PermissionSettings = {
+	const settings = validPolicy({
 		write: {
 			"**/*.ts": "deny",
 			"src/**": "allow",
 		},
-	};
+	});
 
 	assert.deepEqual(
 		evaluatePermission(
@@ -68,7 +210,7 @@ test("evaluates ordered edit rules against normalized paths", () => {
 });
 
 test("supports regex rules and preserves external absolute paths", () => {
-	const settings: PermissionSettings = { write: { "/secret\\.key$/": "deny" } };
+	const settings = validPolicy({ write: { "/secret\\.key$/": "deny" } });
 	assert.deepEqual(
 		evaluatePermission(
 			settings,
@@ -87,7 +229,7 @@ test("supports regex rules and preserves external absolute paths", () => {
 
 test("accepts ask rules and returns their exact match metadata", () => {
 	const decision = evaluatePermission(
-		{ write: { "secret.txt": "ask" } },
+		validPolicy({ write: { "secret.txt": "ask" } }),
 		{ toolName: "write", input: { path: "secret.txt" } },
 		cwd,
 	);
@@ -102,9 +244,9 @@ test("accepts ask rules and returns their exact match metadata", () => {
 });
 
 test("non-TUI modes skip ask rules toward the earlier configured match", () => {
-	const policy: PermissionSettings = {
+	const policy = validPolicy({
 		write: { "**/*.txt": "deny", "secret.txt": "ask" },
-	};
+	});
 	for (const mode of ["print", "json", "rpc"] as const) {
 		assert.equal(
 			evaluatePermission(
@@ -119,7 +261,7 @@ test("non-TUI modes skip ask rules toward the earlier configured match", () => {
 	}
 	assert.equal(
 		evaluatePermission(
-			{ write: { "**/*.txt": "allow", "secret.txt": "ask" } },
+			validPolicy({ write: { "**/*.txt": "allow", "secret.txt": "ask" } }),
 			{ toolName: "write", input: { path: "secret.txt" } },
 			cwd,
 			"print",
@@ -130,7 +272,7 @@ test("non-TUI modes skip ask rules toward the earlier configured match", () => {
 
 test("Bash denies any segment even when another segment asks", () => {
 	const decision = evaluatePermission(
-		{ bash: { "git push *": "deny", "echo *": "ask" } },
+		validPolicy({ bash: { "git push *": "deny", "echo *": "ask" } }),
 		{
 			toolName: "bash",
 			input: { command: "echo ready && git push origin main" },
@@ -141,7 +283,7 @@ test("Bash denies any segment even when another segment asks", () => {
 });
 
 test("evaluates exploration targets, defaults, and effective globs", () => {
-	const settings: PermissionSettings = {
+	const settings = validPolicy({
 		read: {
 			"private/**": "deny",
 			"**/*.md": "deny",
@@ -149,7 +291,7 @@ test("evaluates exploration targets, defaults, and effective globs", () => {
 			".": "deny",
 			"/external\\/secret$/": "deny",
 		},
-	};
+	});
 	assert.equal(
 		evaluatePermission(
 			settings,
@@ -215,13 +357,13 @@ test("evaluates exploration targets, defaults, and effective globs", () => {
 });
 
 test("evaluates find's effective full-path glob for relative and external roots", () => {
-	const settings: PermissionSettings = {
+	const settings = validPolicy({
 		read: {
 			"**/src/*.ts": "deny",
 			"src/*.ts": "allow",
 			"/external/**/src/*.ts": "deny",
 		},
-	};
+	});
 
 	assert.deepEqual(
 		evaluatePermission(
@@ -257,9 +399,9 @@ test("evaluates find's effective full-path glob for relative and external roots"
 });
 
 test("evaluates find basename-only patterns without joining the search path", () => {
-	const settings: PermissionSettings = {
+	const settings = validPolicy({
 		read: { "*.ts": "deny" },
-	};
+	});
 
 	assert.deepEqual(
 		evaluatePermission(
@@ -301,7 +443,7 @@ test("denies exploration base paths and effective patterns independently", () =>
 		],
 	] as const) {
 		const baseDenied = evaluatePermission(
-			{ read: { private: "deny" } },
+			validPolicy({ read: { private: "deny" } }),
 			{ toolName, input },
 			cwd,
 		);
@@ -310,7 +452,7 @@ test("denies exploration base paths and effective patterns independently", () =>
 			assert.equal(baseDenied.target, baseTarget);
 
 		const patternDenied = evaluatePermission(
-			{ read: { private: "allow", [effectiveTarget]: "deny" } },
+			validPolicy({ read: { private: "allow", [effectiveTarget]: "deny" } }),
 			{ toolName, input },
 			cwd,
 		);
@@ -321,11 +463,11 @@ test("denies exploration base paths and effective patterns independently", () =>
 });
 
 test("matches every simple Bash command and complete command tokens", () => {
-	const settings: PermissionSettings = {
+	const settings = validPolicy({
 		bash: {
 			"git push *": "deny",
 		},
-	};
+	});
 
 	assert.deepEqual(
 		evaluatePermission(
@@ -379,7 +521,7 @@ test("matches every simple Bash command and complete command tokens", () => {
 	);
 	assert.deepEqual(
 		evaluatePermission(
-			{ bash: { "git push origin main": "deny" } },
+			validPolicy({ bash: { "git push origin main": "deny" } }),
 			{
 				toolName: "bash",
 				input: { command: ["git push ", "\\", "\n", "origin main"].join("") },
@@ -397,7 +539,7 @@ test("matches every simple Bash command and complete command tokens", () => {
 });
 
 test("fails closed for ambiguous Bash syntax only when Bash policy is configured", () => {
-	const settings: PermissionSettings = { bash: { "git push *": "deny" } };
+	const settings = validPolicy({ bash: { "git push *": "deny" } });
 	assert.equal(
 		evaluatePermission(
 			settings,
@@ -430,7 +572,7 @@ test("fails closed for ambiguous Bash syntax only when Bash policy is configured
 	);
 	assert.equal(
 		evaluatePermission(
-			{},
+			validPolicy({}),
 			{ toolName: "bash", input: { command: "echo $(git push origin main)" } },
 			cwd,
 		).action,
@@ -476,7 +618,7 @@ test("fails closed for ambiguous Bash syntax only when Bash policy is configured
 	);
 	assert.equal(
 		evaluatePermission(
-			{ bash: {} },
+			validPolicy({ bash: {} }),
 			{ toolName: "bash", input: { command: "echo $(git push origin main)" } },
 			cwd,
 		).action,
@@ -586,82 +728,42 @@ test("loads global and trusted project settings with deep merge and fails closed
 
 async function captureToolCallHandler(
 	settings: PermissionSettings | PermissionPolicy,
-): Promise<(event: ToolCallEvent, ctx: never) => unknown> {
-	let handler: ((event: ToolCallEvent, ctx: never) => unknown) | undefined;
-	const sessionStartHandlers: Array<(event: unknown, ctx: never) => unknown> =
-		[];
-	const api = mockExtensionAPI(
-		(event: string, value: (event: unknown, ctx: never) => unknown): void => {
-			if (event === "session_start") sessionStartHandlers.push(value);
-			if (event === "tool_call")
-				handler = value as (event: ToolCallEvent, ctx: never) => unknown;
-		},
-	);
+): Promise<ToolCallHandler> {
+	let handler: ToolCallHandler | undefined;
+	const sessionStartHandlers: SessionStartHandler[] = [];
+	const api = mockExtensionAPI((event, registeredHandler): void => {
+		if (event === "session_start")
+			sessionStartHandlers.push(registeredHandler as SessionStartHandler);
+		if (event === "tool_call") handler = registeredHandler as ToolCallHandler;
+	});
 
-	const originalCreate = SettingsManager.create.bind(SettingsManager);
-	try {
-		const policy: PermissionPolicy =
-			"configuration" in settings
-				? settings
-				: { settings, configuration: { status: "valid" } };
+	const policy = "configuration" in settings ? settings : validPolicy(settings);
+	const source = new TestPermissionPolicySource([policy]);
+	registerPermissionHook(api, source.load);
+	assert.ok(handler);
 
-		if (policy.configuration.status === "invalid") {
-			const reason = policy.configuration.reason;
-			SettingsManager.create = () =>
-				({
-					drainErrors: () => [
-						{
-							scope: "global" as const,
-							error: new Error(reason),
-						},
-					],
-					getGlobalSettings: () => ({}),
-					getProjectSettings: () => undefined,
-				}) as never;
-		} else {
-			const piSettings = { ppp: { permission: policy.settings } };
-			SettingsManager.create = () =>
-				({
-					drainErrors: () => [],
-					getGlobalSettings: () => piSettings,
-					getProjectSettings: () => undefined,
-				}) as never;
-		}
-
-		registerPermissionHook(api);
-		assert.ok(handler);
-
-		for (const fn of sessionStartHandlers) {
-			await fn({ type: "session_start", reason: "startup" }, {
-				cwd,
-				isProjectTrusted: () => true,
-				ui: { notify(): void {} },
-			} as never);
-		}
-
-		return handler;
-	} finally {
-		SettingsManager.create = originalCreate;
+	for (const fn of sessionStartHandlers) {
+		await fn({ type: "session_start", reason: "startup" }, {
+			cwd,
+			isProjectTrusted: () => true,
+			ui: { notify(): void {} },
+		} as never);
 	}
+
+	return handler;
 }
 
-function capturePermissionHandlers(): Map<
-	string,
-	(event: unknown, context: never) => unknown
-> {
+function capturePermissionHandlers(
+	source: TestPermissionPolicySource,
+): Map<"session_start" | "tool_call", PermissionHookHandler> {
 	const handlers = new Map<
-		string,
-		(event: unknown, context: never) => unknown
+		"session_start" | "tool_call",
+		PermissionHookHandler
 	>();
-	const api = mockExtensionAPI(
-		(
-			event: string,
-			handler: (event: unknown, context: never) => unknown,
-		): void => {
-			handlers.set(event, handler);
-		},
-	);
-	registerPermissionHook(api);
+	const api = mockExtensionAPI((event, handler): void => {
+		handlers.set(event, handler);
+	});
+	registerPermissionHook(api, source.load);
 	return handlers;
 }
 
@@ -1237,87 +1339,68 @@ test("allows each supported exploration tool through a matched allow rule", asyn
 	}
 });
 
-test("reloads trusted project permissions without allowing untrusted overrides", async () => {
-	const root = await mkdtemp(join(tmpdir(), "pi-plus-plus-permissions-"));
-	const agentDir = join(root, "agent");
-	const projectDir = join(root, "project");
-	const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
-	try {
-		await mkdir(join(projectDir, ".pi"), { recursive: true });
-		await mkdir(agentDir, { recursive: true });
-		await writeFile(
-			join(agentDir, "settings.json"),
-			JSON.stringify({
-				ppp: { permission: { write: { "secret.txt": "deny" } } },
-			}),
-		);
-		await writeFile(
-			join(projectDir, ".pi", "settings.json"),
-			JSON.stringify({
-				ppp: { permission: { write: { "secret.txt": "ask" } } },
-			}),
-		);
-		process.env.PI_CODING_AGENT_DIR = agentDir;
-		const handlers = capturePermissionHandlers();
-		const sessionStart = handlers.get("session_start");
-		const toolCall = handlers.get("tool_call");
-		assert.ok(sessionStart);
-		assert.ok(toolCall);
+test("reloads explicit policies and records trusted policy loads", async () => {
+	const source = new TestPermissionPolicySource([
+		validPolicy({ write: { "secret.txt": "ask" } }),
+		validPolicy({ write: { "secret.txt": "deny" } }),
+		validPolicy({ write: { "secret.txt": "deny" } }),
+	]);
+	const handlers = capturePermissionHandlers(source);
+	const sessionStart = handlers.get("session_start") as
+		| SessionStartHandler
+		| undefined;
+	const toolCall = handlers.get("tool_call") as ToolCallHandler | undefined;
+	assert.ok(sessionStart);
+	assert.ok(toolCall);
 
-		const call = {
-			type: "tool_call",
-			toolCallId: "lifecycle",
-			toolName: "write",
-			input: { path: "secret.txt", content: "x" },
-		};
-		const context = (trusted: boolean) =>
-			({
-				cwd: projectDir,
-				isProjectTrusted: () => trusted,
-				mode: "tui",
-				ui: {
-					notify(): void {},
-					select: async () => "Allow this session",
-					confirm: async () => true,
-				},
-			}) as never;
+	const call = {
+		type: "tool_call" as const,
+		toolCallId: "lifecycle",
+		toolName: "write",
+		input: { path: "secret.txt", content: "x" },
+	};
+	const context = (projectTrusted: boolean) =>
+		({
+			cwd,
+			isProjectTrusted: () => projectTrusted,
+			mode: "tui",
+			ui: {
+				notify(): void {},
+				select: async () => "Allow this session",
+				confirm: async () => true,
+			},
+		}) as never;
 
-		await sessionStart(
-			{ type: "session_start", reason: "startup" },
-			context(true),
-		);
-		assert.equal(await toolCall(call, context(true)), undefined);
+	await sessionStart(
+		{ type: "session_start", reason: "startup" },
+		context(true),
+	);
+	assert.equal(await toolCall(call, context(true)), undefined);
 
-		await writeFile(
-			join(projectDir, ".pi", "settings.json"),
-			JSON.stringify({
-				ppp: { permission: { write: { "secret.txt": "deny" } } },
-			}),
-		);
-		await sessionStart(
-			{ type: "session_start", reason: "reload" },
-			context(true),
-		);
-		assert.deepEqual(await toolCall(call, context(true)), {
-			block: true,
-			reason:
-				"Permission policy denied write for target secret.txt by rule secret.txt; do not seek alternate tools, paths, or commands to bypass this restriction.",
-		});
+	await sessionStart(
+		{ type: "session_start", reason: "reload" },
+		context(true),
+	);
+	assert.deepEqual(await toolCall(call, context(true)), {
+		block: true,
+		reason:
+			"Permission policy denied write for target secret.txt by rule secret.txt; do not seek alternate tools, paths, or commands to bypass this restriction.",
+	});
 
-		await sessionStart(
-			{ type: "session_start", reason: "reload" },
-			context(false),
-		);
-		assert.deepEqual(await toolCall(call, context(false)), {
-			block: true,
-			reason:
-				"Permission policy denied write for target secret.txt by rule secret.txt; do not seek alternate tools, paths, or commands to bypass this restriction.",
-		});
-	} finally {
-		if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
-		else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
-		await rm(root, { recursive: true, force: true });
-	}
+	await sessionStart(
+		{ type: "session_start", reason: "reload" },
+		context(false),
+	);
+	assert.deepEqual(await toolCall(call, context(false)), {
+		block: true,
+		reason:
+			"Permission policy denied write for target secret.txt by rule secret.txt; do not seek alternate tools, paths, or commands to bypass this restriction.",
+	});
+	assert.deepEqual(source.calls, [
+		{ cwd, projectTrusted: true },
+		{ cwd, projectTrusted: true },
+		{ cwd, projectTrusted: false },
+	]);
 });
 
 test("registers the permissions tool_call hook through the exported extension", () => {
